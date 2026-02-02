@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Thème global -->
+    <style name="Theme.FondabecBattage" parent="Theme.Material3.DayNight.NoActionBar" />
+
+    <!-- Splash -->
+    <style name="Theme.FondabecBattage.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+
+        <!-- ✅ Ton logo -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/fondabec_logo</item>
+
+        <!-- Optionnel: durée d’animation (ms) -->
+        <item name="windowSplashScreenAnimationDuration">300</item>
+
+        <item name="postSplashScreenTheme">@style/Theme.FondabecBattage</item>
+    </style>
+
+</resources>

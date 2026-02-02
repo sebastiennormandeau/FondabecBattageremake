@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "498873991138",
+    "project_id": "fondabecbattage",
+    "storage_bucket": "fondabecbattage.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:498873991138:android:a14f43a3db2350c65ec3bb",
+        "android_client_info": {
+          "package_name": "com.fondabec.battage"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQXUUrG6615_RdHkr07ZqoyAI2o4E-2h8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
