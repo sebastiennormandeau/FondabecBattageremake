@@ -1,10 +1,38 @@
 package com.fondabec.battage.ui
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -16,7 +44,13 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
-import com.google.maps.android.compose.*
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.TileOverlay
+import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.heatmaps.HeatmapTileProvider
 import com.google.maps.android.heatmaps.WeightedLatLng
 import kotlinx.coroutines.flow.Flow
@@ -100,6 +134,8 @@ fun DepthMapScreen(
     var draftBusy by rememberSaveable { mutableStateOf(false) }
 
     val cameraPositionState = rememberCameraPositionState()
+
+    // CORRECTIF 1 : 'remember' pour les settings de la carte
     val uiSettings = remember {
         MapUiSettings(
             compassEnabled = true,
@@ -107,6 +143,7 @@ fun DepthMapScreen(
             myLocationButtonEnabled = false
         )
     }
+    // CORRECTIF 2 : 'remember' pour les propriétés de la carte
     val properties = remember { MapProperties(isMyLocationEnabled = false) }
 
     fun resetDraft() {
@@ -193,24 +230,28 @@ fun DepthMapScreen(
                 }
 
                 markers.forEach { m ->
-                    val hue = when (m.kind) {
-                        MarkerKind.HISTORY -> 210f // bleu
-                        MarkerKind.PROJECT -> depthHue(m.avgDepthFt, maxDepth)
+                    // CORRECTIF 3 : Utilisation de key() et remember() pour les marqueurs
+                    key(m.kind, m.id) {
+                        val hue = when (m.kind) {
+                            MarkerKind.HISTORY -> 210f // bleu
+                            MarkerKind.PROJECT -> depthHue(m.avgDepthFt, maxDepth)
+                        }
+                        Marker(
+                            state = remember(m) { MarkerState(position = LatLng(m.lat, m.lng)) },
+                            title = m.title,
+                            snippet = if (m.address.isNotBlank()) m.address else "—",
+                            icon = BitmapDescriptorFactory.defaultMarker(hue),
+                            onClick = { selected = m; true }
+                        )
                     }
-                    Marker(
-                        state = MarkerState(position = LatLng(m.lat, m.lng)),
-                        title = m.title,
-                        snippet = if (m.address.isNotBlank()) m.address else "—",
-                        icon = BitmapDescriptorFactory.defaultMarker(hue),
-                        onClick = { selected = m; true }
-                    )
                 }
 
                 // Marker "draft" visible pendant PICK (pour feedback)
                 val d = draftLatLng
                 if (addPicking && d != null) {
+                    // CORRECTIF 4 (Ta ligne 249) : remember() ajouté ici aussi
                     Marker(
-                        state = MarkerState(position = d),
+                        state = remember(d) { MarkerState(position = d) },
                         title = "Nouveau point",
                         snippet = "Long-press pour repositionner",
                         icon = BitmapDescriptorFactory.defaultMarker(60f)
