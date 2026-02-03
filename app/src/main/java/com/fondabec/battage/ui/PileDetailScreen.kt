@@ -47,7 +47,8 @@ fun PileDetailScreen(
 ) {
     val pile by observePile().collectAsStateWithLifecycle(initialValue = null)
 
-    val gauges = listOf("4 1/2", "5 1/2", "7", "9 5/8")
+    val gauges = listOf("4 1/2 0.250", "4 1/2 0.290", "5 1/2 0.304","5 1/2 0.361","5 1/2 0.415",
+        "7 0.317","7 0.362","7 0.453", "9 5/8 0.313","9 5/8 0.352","9 5/8 0.395")
 
     var initialized by remember(pileId) { mutableStateOf(false) }
 
