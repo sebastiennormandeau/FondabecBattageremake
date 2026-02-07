@@ -29,13 +29,6 @@ android {
         // --- AJOUT : Injecter la clé dans le Manifest ---
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
-    defaultConfig {
-        applicationId = "com.fondabec.battage"
-        minSdk = 24
-        targetSdk = 36
-        versionCode = 1
-        versionName = "0.0.1"
-    }
 
     buildFeatures { compose = true }
 
