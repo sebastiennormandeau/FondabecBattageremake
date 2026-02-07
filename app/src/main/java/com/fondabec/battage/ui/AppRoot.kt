@@ -89,7 +89,7 @@ fun AppRoot(
             pileId = s.pileId,
             observePile = { vm.observePile(s.pileId) },
             onBack = { vm.backFromPileScreen(s.projectId, s.returnToPlan, s.returnPlanPageIndex) },
-            onSave = { pileNo, gaugeIn, depthFt, implanted ->
+            onSave = { pileNo, gaugeIn, depthFt, implanted, rebattage ->
                 vm.savePileAndBack(
                     projectId = s.projectId,
                     pileId = s.pileId,
@@ -97,6 +97,7 @@ fun AppRoot(
                     gaugeIn = gaugeIn,
                     depthFt = depthFt,
                     implanted = implanted,
+                    rebattage = rebattage,
                     returnToPlan = s.returnToPlan,
                     returnPlanPageIndex = s.returnPlanPageIndex
                 )

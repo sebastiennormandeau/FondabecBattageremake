@@ -42,7 +42,7 @@ fun PileDetailScreen(
     pileId: Long,
     observePile: () -> Flow<PileEntity?>,
     onBack: () -> Unit,
-    onSave: (pileNo: String, gaugeIn: String, depthFt: Double, implanted: Boolean) -> Unit,
+    onSave: (pileNo: String, gaugeIn: String, depthFt: Double, implanted: Boolean, rebattage: Boolean) -> Unit,
     onDelete: () -> Unit
 ) {
     val pile by observePile().collectAsStateWithLifecycle(initialValue = null)
@@ -55,6 +55,7 @@ fun PileDetailScreen(
     var pileNoInput by remember(pileId) { mutableStateOf("") }
     var gaugeIn by remember(pileId) { mutableStateOf("") }
     var implanted by remember(pileId) { mutableStateOf(false) }
+    var rebattage by remember(pileId) { mutableStateOf(false) }
     var depthField by remember(pileId) { mutableStateOf(TextFieldValue("")) }
 
     LaunchedEffect(pile) {
@@ -63,6 +64,7 @@ fun PileDetailScreen(
             pileNoInput = p.pileNo
             gaugeIn = p.gaugeIn
             implanted = p.implanted
+            rebattage = p.rebattage
             depthField = if (p.depthFt == 0.0) TextFieldValue("") else TextFieldValue(p.depthFt.toString())
             initialized = true
         }
@@ -169,9 +171,18 @@ fun PileDetailScreen(
                 }
             }
 
+            item { Text("Rebattage") }
+
+            item {
+                TextButton(onClick = { rebattage = !rebattage }, modifier = Modifier.fillMaxWidth()) {
+                    Checkbox(checked = rebattage, onCheckedChange = { rebattage = it })
+                    Text(if (rebattage) " Oui" else " Non")
+                }
+            }
+
             item {
                 Button(
-                    onClick = { onSave(pileNoInput, gaugeIn, depthFt, implanted) },
+                    onClick = { onSave(pileNoInput, gaugeIn, depthFt, implanted, rebattage) },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Enregistrer") }
             }

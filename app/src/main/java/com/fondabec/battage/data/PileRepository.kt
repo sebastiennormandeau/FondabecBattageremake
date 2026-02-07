@@ -36,6 +36,7 @@ class PileRepository(
                 gaugeIn = "",
                 depthFt = 0.0,
                 implanted = false,
+                rebattage = false,
                 createdAtEpochMs = now,
                 updatedAtEpochMs = now,
                 remoteId = remoteId,
@@ -67,6 +68,7 @@ class PileRepository(
                         gaugeIn = "",
                         depthFt = 0.0,
                         implanted = false,
+                        rebattage = false,
                         createdAtEpochMs = now,
                         updatedAtEpochMs = now,
                         remoteId = CloudIds.newRemoteId(),
@@ -90,6 +92,7 @@ class PileRepository(
                     gaugeIn = g,
                     depthFt = 0.0,
                     implanted = false,
+                    rebattage = false,
                     createdAtEpochMs = now,
                     updatedAtEpochMs = now,
                     remoteId = CloudIds.newRemoteId(),
@@ -131,6 +134,7 @@ class PileRepository(
                         gaugeIn = g,
                         depthFt = 0.0,
                         implanted = false,
+                        rebattage = false,
                         createdAtEpochMs = now,
                         updatedAtEpochMs = now,
                         remoteId = CloudIds.newRemoteId(),
@@ -154,7 +158,8 @@ class PileRepository(
         pileNo: String,
         gaugeIn: String,
         depthFt: Double,
-        implanted: Boolean
+        implanted: Boolean,
+        rebattage: Boolean
     ) = withContext(Dispatchers.IO) {
         val pile = dao.getById(pileId) ?: return@withContext
         if (!CloudSyncHolder.canWrite(pile.ownerUid)) return@withContext
@@ -180,6 +185,7 @@ class PileRepository(
             gaugeIn = g,
             depthFt = depthFt,
             implanted = implanted,
+            rebattage = rebattage,
             updatedAtEpochMs = now
         )
 

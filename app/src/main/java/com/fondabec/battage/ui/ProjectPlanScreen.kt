@@ -41,8 +41,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -364,14 +366,31 @@ fun ProjectPlanScreen(
                         val c = Offset(x, y)
 
                         val pile = h.pileId?.let { pileById[it] }
-                        val ringColor = when {
-                            pile == null -> Color(0xFFE57373)
-                            pile.implanted && pile.depthFt > 0.0 -> Color(0xFF4CAF50)
-                            pile.implanted -> Color(0xFFFFD54F)
-                            else -> Color(0xFFB0BEC5)
+                        
+                        val hasDepth = pile?.depthFt ?: 0.0 > 0.0
+                        val green = Color(0xFF4CAF50)
+                        val blue = Color(0xFF2196F3)
+
+                        if (pile?.rebattage == true) {
+                            if (hasDepth) {
+                                // Moitié vert, moitié bleu
+                                val rectSize = outer * 2
+                                drawArc(green, startAngle = -90f, sweepAngle = 180f, useCenter = false, topLeft = Offset(c.x - outer, c.y - outer), size = Size(rectSize, rectSize), style = Stroke(ringStroke))
+                                drawArc(blue, startAngle = 90f, sweepAngle = 180f, useCenter = false, topLeft = Offset(c.x - outer, c.y - outer), size = Size(rectSize, rectSize), style = Stroke(ringStroke))
+                            } else {
+                                // Bleu
+                                drawCircle(blue, radius = outer, center = c, style = Stroke(ringStroke))
+                            }
+                        } else {
+                             val ringColor = when {
+                                pile == null -> Color(0xFFE57373) // Pas encore de pieu associé
+                                pile.implanted && hasDepth -> green
+                                pile.implanted -> Color(0xFFFFD54F) // Jaune
+                                else -> Color(0xFFB0BEC5) // Gris
+                            }
+                            drawCircle(ringColor, radius = outer, center = c, style = Stroke(ringStroke))
                         }
 
-                        drawCircle(ringColor, radius = outer, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(ringStroke))
                         drawLine(Color.White, Offset(c.x - arm, c.y), Offset(c.x + arm, c.y), strokeWidth = haloStroke)
                         drawLine(Color.White, Offset(c.x, c.y - arm), Offset(c.x, c.y + arm), strokeWidth = haloStroke)
                         drawLine(Color.Black, Offset(c.x - arm, c.y), Offset(c.x + arm, c.y), strokeWidth = crossStroke)

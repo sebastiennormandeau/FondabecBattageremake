@@ -34,6 +34,7 @@ interface PileDao {
             gaugeIn = :gaugeIn,
             depthFt = :depthFt,
             implanted = :implanted,
+            rebattage = :rebattage,
             updatedAtEpochMs = :updatedAtEpochMs
         WHERE id = :pileId
         """
@@ -44,6 +45,7 @@ interface PileDao {
         gaugeIn: String,
         depthFt: Double,
         implanted: Boolean,
+        rebattage: Boolean,
         updatedAtEpochMs: Long
     )
 
@@ -81,6 +83,7 @@ interface PileDao {
             gaugeIn = :gaugeIn,
             depthFt = :depthFt,
             implanted = :implanted,
+            rebattage = :rebattage,
             createdAtEpochMs = :createdAtEpochMs,
             updatedAtEpochMs = :updatedAtEpochMs,
             remoteId = :remoteId,
@@ -94,6 +97,7 @@ interface PileDao {
         gaugeIn: String,
         depthFt: Double,
         implanted: Boolean,
+        rebattage: Boolean,
         createdAtEpochMs: Long,
         updatedAtEpochMs: Long,
         remoteId: String,

@@ -321,6 +321,7 @@ class CloudSyncService(
         val gaugeIn = data.str("gaugeIn")
         val depthFt = data.double("depthFt")
         val implanted = data.bool("implanted")
+        val rebattage = data.bool("rebattage")
         val createdAt = data.long("createdAtEpochMs")
         val updatedAt = data.long("updatedAtEpochMs")
 
@@ -335,6 +336,7 @@ class CloudSyncService(
                     gaugeIn = gaugeIn,
                     depthFt = depthFt,
                     implanted = implanted,
+                    rebattage = rebattage,
                     createdAtEpochMs = createdAt,
                     updatedAtEpochMs = updatedAt,
                     remoteId = pileRemoteId,
@@ -351,6 +353,7 @@ class CloudSyncService(
                 gaugeIn = gaugeIn,
                 depthFt = depthFt,
                 implanted = implanted,
+                rebattage = rebattage,
                 createdAtEpochMs = if (createdAt == 0L) local.createdAtEpochMs else createdAt,
                 updatedAtEpochMs = if (updatedAt == 0L) local.updatedAtEpochMs else updatedAt,
                 remoteId = pileRemoteId,
@@ -595,6 +598,7 @@ class CloudSyncService(
                     "gaugeIn" to pile.gaugeIn,
                     "depthFt" to pile.depthFt,
                     "implanted" to pile.implanted,
+                    "rebattage" to pile.rebattage,
                     "createdAtEpochMs" to pile.createdAtEpochMs,
                     "updatedAtEpochMs" to pile.updatedAtEpochMs
                 )

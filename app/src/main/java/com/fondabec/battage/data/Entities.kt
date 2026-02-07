@@ -60,6 +60,7 @@ data class PileEntity(
     val gaugeIn: String = "",
     val depthFt: Double = 0.0,
     val implanted: Boolean = false,
+    val rebattage: Boolean = false,
 
     // Sync timestamps
     val createdAtEpochMs: Long = 0L,

@@ -226,11 +226,12 @@ class MainViewModel(
         gaugeIn: String,
         depthFt: Double,
         implanted: Boolean,
+        rebattage: Boolean,
         returnToPlan: Boolean,
         returnPlanPageIndex: Int
     ) {
         viewModelScope.launch {
-            pileRepo.updatePile(projectId, pileId, pileNo, gaugeIn, depthFt, implanted)
+            pileRepo.updatePile(projectId, pileId, pileNo, gaugeIn, depthFt, implanted, rebattage)
             backFromPile(projectId, returnToPlan, returnPlanPageIndex)
         }
     }

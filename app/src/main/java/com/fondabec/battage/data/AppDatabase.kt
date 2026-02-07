@@ -7,8 +7,8 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-// On passe à la version 11
-private const val DB_VERSION = 11
+// On passe à la version 12
+private const val DB_VERSION = 12
 
 private val MIGRATION_6_7_ADD_MAP_POINTS = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -62,7 +62,6 @@ private val MIGRATION_7_8_ADD_CLOUD_FIELDS = object : Migration(7, 8) {
     }
 }
 
-// Nouvelle migration pour ajouter la table des documents
 private val MIGRATION_10_11_ADD_DOCUMENTS = object : Migration(10, 11) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
@@ -88,6 +87,13 @@ private val MIGRATION_10_11_ADD_DOCUMENTS = object : Migration(10, 11) {
     }
 }
 
+// Nouvelle migration pour ajouter le champ rebattage
+private val MIGRATION_11_12_ADD_REBATTAGE_TO_PILES = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE piles ADD COLUMN rebattage INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 @Database(
     entities = [
         ProjectEntity::class,
@@ -95,7 +101,7 @@ private val MIGRATION_10_11_ADD_DOCUMENTS = object : Migration(10, 11) {
         PileHotspotEntity::class,
         MapPointEntity::class,
         PhotoEntity::class,
-        ProjectDocumentEntity::class // Ajouté
+        ProjectDocumentEntity::class
     ],
     version = DB_VERSION,
     exportSchema = false
@@ -107,7 +113,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun pileHotspotDao(): PileHotspotDao
     abstract fun mapPointDao(): MapPointDao
     abstract fun photoDao(): PhotoDao
-    abstract fun projectDocumentDao(): ProjectDocumentDao // Ajouté
+    abstract fun projectDocumentDao(): ProjectDocumentDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -122,7 +128,8 @@ abstract class AppDatabase : RoomDatabase() {
                     .addMigrations(
                         MIGRATION_6_7_ADD_MAP_POINTS,
                         MIGRATION_7_8_ADD_CLOUD_FIELDS,
-                        MIGRATION_10_11_ADD_DOCUMENTS // Ajouté
+                        MIGRATION_10_11_ADD_DOCUMENTS,
+                        MIGRATION_11_12_ADD_REBATTAGE_TO_PILES // Ajouté
                     )
                     .fallbackToDestructiveMigration()
                     .build()
