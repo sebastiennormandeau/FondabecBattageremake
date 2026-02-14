@@ -7,8 +7,8 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-// On passe à la version 12
-private const val DB_VERSION = 12
+// On passe à la version 13
+private const val DB_VERSION = 13
 
 private val MIGRATION_6_7_ADD_MAP_POINTS = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -87,10 +87,44 @@ private val MIGRATION_10_11_ADD_DOCUMENTS = object : Migration(10, 11) {
     }
 }
 
-// Nouvelle migration pour ajouter le champ rebattage
 private val MIGRATION_11_12_ADD_REBATTAGE_TO_PILES = object : Migration(11, 12) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE piles ADD COLUMN rebattage INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+private val MIGRATION_12_13_ADD_INSPECTIONS = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS inspection_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                projectId INTEGER NOT NULL,
+                equipmentType TEXT NOT NULL,
+                dateEpochMs INTEGER NOT NULL,
+                operatorName TEXT NOT NULL,
+                machineHours INTEGER NOT NULL,
+                notes TEXT NOT NULL,
+                remoteId TEXT NOT NULL,
+                ownerUid TEXT NOT NULL,
+                updatedAtEpochMs INTEGER NOT NULL,
+                FOREIGN KEY(projectId) REFERENCES projects(id) ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_inspection_reports_projectId ON inspection_reports(projectId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_inspection_reports_remoteId ON inspection_reports(remoteId)")
+
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS inspection_points (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                reportId INTEGER NOT NULL,
+                label TEXT NOT NULL,
+                status TEXT NOT NULL,
+                FOREIGN KEY(reportId) REFERENCES inspection_reports(id) ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_inspection_points_reportId ON inspection_points(reportId)")
     }
 }
 
@@ -101,7 +135,9 @@ private val MIGRATION_11_12_ADD_REBATTAGE_TO_PILES = object : Migration(11, 12) 
         PileHotspotEntity::class,
         MapPointEntity::class,
         PhotoEntity::class,
-        ProjectDocumentEntity::class
+        ProjectDocumentEntity::class,
+        InspectionReportEntity::class, // Ajouté
+        InspectionPointEntity::class // Ajouté
     ],
     version = DB_VERSION,
     exportSchema = false
@@ -114,6 +150,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun mapPointDao(): MapPointDao
     abstract fun photoDao(): PhotoDao
     abstract fun projectDocumentDao(): ProjectDocumentDao
+    abstract fun inspectionDao(): InspectionDao // Ajouté
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -129,7 +166,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_6_7_ADD_MAP_POINTS,
                         MIGRATION_7_8_ADD_CLOUD_FIELDS,
                         MIGRATION_10_11_ADD_DOCUMENTS,
-                        MIGRATION_11_12_ADD_REBATTAGE_TO_PILES // Ajouté
+                        MIGRATION_11_12_ADD_REBATTAGE_TO_PILES,
+                        MIGRATION_12_13_ADD_INSPECTIONS // Ajouté
                     )
                     .fallbackToDestructiveMigration()
                     .build()

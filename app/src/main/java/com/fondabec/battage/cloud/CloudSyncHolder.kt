@@ -43,4 +43,8 @@ object CloudSyncHolder {
         val isAdmin = service?.isAdminCached() == true
         return isAdmin || ownerUid.isBlank() || ownerUid == uid
     }
+
+    fun pushInspectionReport(reportId: Long) {
+        service?.pushInspectionReport(reportId)
+    }
 }

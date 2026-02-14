@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.fondabec.battage.auth.AuthViewModel
 import com.fondabec.battage.cloud.CloudSyncHolder
 import com.fondabec.battage.data.AppDatabase
+import com.fondabec.battage.data.InspectionRepository
 import com.fondabec.battage.data.MapPointRepository
 import com.fondabec.battage.data.PhotoRepository
 import com.fondabec.battage.data.PileHotspotRepository
@@ -50,9 +51,13 @@ class MainActivity : ComponentActivity() {
         val mapPointRepo = MapPointRepository(dao = db.mapPointDao())
         val photoRepo = PhotoRepository(dao = db.photoDao())
 
-        // NOUVEAU REPO POUR LES DOCS
         val documentRepo = ProjectDocumentRepository(
             dao = db.projectDocumentDao(),
+            projectDao = db.projectDao()
+        )
+
+        val inspectionRepo = InspectionRepository(
+            inspectionDao = db.inspectionDao(),
             projectDao = db.projectDao()
         )
 
@@ -66,8 +71,10 @@ class MainActivity : ComponentActivity() {
                 hotspotRepo,
                 mapPointRepo,
                 photoRepo,
-                documentRepo, // <--- AJOUTÉ
-                settingsRepo
+                documentRepo,
+                inspectionRepo,
+                settingsRepo,
+                applicationContext
             )
         )[MainViewModel::class.java]
 

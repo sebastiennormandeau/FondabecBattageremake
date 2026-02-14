@@ -20,6 +20,7 @@ fun AppRoot(
             onDarkModeChanged = { vm.setDarkMode(it) },
             onOpenCarnet = { vm.goCarnet() },
             onOpenMap = { vm.goDepthMap() },
+            onOpenInspections = { vm.goInspections() },
             onLogout = onLogout
         )
 
@@ -48,6 +49,7 @@ fun AppRoot(
             observePiles = { vm.observePiles(s.projectId) },
             observePhotos = { vm.observePhotos(s.projectId) },
             observeDocuments = { vm.observeDocuments(s.projectId) },
+            observeInspections = { vm.observeInspectionsForProject(s.projectId) },
             onBack = { vm.backHome() },
             onSaveProject = { name, city -> vm.updateProject(s.projectId, name, city) },
             onDeleteProject = { vm.deleteProject(s.projectId) },
@@ -73,15 +75,10 @@ fun AppRoot(
             onAddPhoto = { photoUri -> vm.addPhoto(s.projectId, photoUri) },
             onUpdatePhoto = { photoId, includeInReport -> vm.updatePhoto(photoId, includeInReport) },
             onDeletePhoto = { photoId -> vm.deletePhoto(photoId) },
-
-            // Documents techniques
             onUploadTechnicalDocument = { uri, title -> vm.uploadTechnicalDocument(s.projectId, uri, title) },
             onDeleteTechnicalDocument = { doc -> vm.deleteTechnicalDocument(doc) },
-
-            // --- C'est ICI qu'on branche le lecteur natif ---
-            onViewTechnicalDocument = { doc ->
-                vm.openDocumentViewer(s.projectId, doc.storagePath, doc.title)
-            }
+            onViewTechnicalDocument = { doc -> vm.openDocumentViewer(doc) },
+            onExportInspection = { report -> vm.exportInspectionReport(report) }
         )
 
         is Screen.PileDetail -> PileDetailScreen(
@@ -117,11 +114,35 @@ fun AppRoot(
             onBack = { vm.openProject(s.projectId) }
         )
 
-        // --- Le nouvel écran ajouté ---
         is Screen.PdfViewer -> PdfViewerScreen(
             storagePath = s.storagePath,
             title = s.title,
             onBack = { vm.openProject(s.projectId) }
+        )
+
+        is Screen.ImageViewer -> ImageViewerScreen(
+            storagePath = s.storagePath,
+            title = s.title,
+            onBack = { vm.openProject(s.projectId) }
+        )
+
+        Screen.InspectionEquipmentSelection -> InspectionEquipmentScreen(
+            onSelectEquipment = { equipmentType -> vm.openInspectionForm(equipmentType) },
+            onBack = { vm.goStart() }
+        )
+
+        is Screen.InspectionForm -> InspectionFormScreen(
+            equipmentType = s.equipmentType,
+            projects = state.projectSummaries,
+            onSave = { projectId, equipmentType, operatorName, machineHours, notes, points ->
+                vm.saveInspection(projectId, equipmentType, operatorName, machineHours, notes, points)
+            },
+            onBack = { vm.goInspections() },
+            onExport = {
+                // This is tricky because we don't have the full report object here.
+                // We would need to fetch it first, which is not ideal from the UI.
+                // A better approach would be to have the export button on the list screen.
+            }
         )
     }
 }

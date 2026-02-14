@@ -1,9 +1,12 @@
 package com.fondabec.battage
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fondabec.battage.cloud.CloudSyncHolder
+import com.fondabec.battage.data.InspectionDao
+import com.fondabec.battage.data.InspectionRepository
 import com.fondabec.battage.data.MapPointRepository
 import com.fondabec.battage.data.PhotoRepository
 import com.fondabec.battage.data.PileHotspotRepository
@@ -13,6 +16,9 @@ import com.fondabec.battage.data.ProjectDocumentRepository
 import com.fondabec.battage.data.ProjectRepository
 import com.fondabec.battage.data.ProjectSummary
 import com.fondabec.battage.data.SettingsRepository
+import com.fondabec.battage.ui.InspectionPoint
+import com.fondabec.battage.utils.EmailSender
+import com.fondabec.battage.utils.PdfGenerator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,12 +45,21 @@ sealed interface Screen {
         val pageIndex: Int = 0
     ) : Screen
 
-    // --- NOUVEL ÉCRAN : Visionneuse PDF ---
     data class PdfViewer(
         val projectId: Long,
         val storagePath: String, // Le chemin dans le cloud
         val title: String
     ) : Screen
+
+    data class ImageViewer(
+        val projectId: Long,
+        val storagePath: String,
+        val title: String
+    ) : Screen
+
+    // --- Fiches d'inspection ---
+    data object InspectionEquipmentSelection : Screen
+    data class InspectionForm(val equipmentType: String) : Screen
 }
 
 data class AppUiState(
@@ -59,8 +74,10 @@ class MainViewModel(
     private val hotspotRepo: PileHotspotRepository,
     private val mapPointRepo: MapPointRepository,
     private val photoRepo: PhotoRepository,
-    private val documentRepo: ProjectDocumentRepository, // DOIT ÊTRE PRÉSENT
-    private val settingsRepo: SettingsRepository
+    private val documentRepo: ProjectDocumentRepository,
+    private val inspectionRepo: InspectionRepository,
+    private val settingsRepo: SettingsRepository,
+    private val context: Context
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -128,7 +145,7 @@ class MainViewModel(
     fun uploadTechnicalDocument(projectId: Long, uri: Uri, title: String) {
         viewModelScope.launch {
             _uploadStatus.value = "Envoi..."
-            documentRepo.addDocument(projectId, uri, title)
+            documentRepo.addDocument(context, projectId, uri, title)
         }
     }
 
@@ -138,10 +155,53 @@ class MainViewModel(
         }
     }
 
-    // --- NOUVEAU : Fonction pour ouvrir la visionneuse ---
-    fun openDocumentViewer(projectId: Long, storagePath: String, title: String) {
-        _state.update {
-            it.copy(screen = Screen.PdfViewer(projectId, storagePath, title))
+    fun openDocumentViewer(doc: ProjectDocumentEntity) {
+        val screen = if (doc.mimeType.startsWith("image/")) {
+            Screen.ImageViewer(doc.projectId, doc.storagePath, doc.title)
+        } else {
+            Screen.PdfViewer(doc.projectId, doc.storagePath, doc.title)
+        }
+        _state.update { it.copy(screen = screen) }
+    }
+
+    // --- Fiches d'inspection ---
+
+    fun goInspections() { _state.update { it.copy(screen = Screen.InspectionEquipmentSelection) } }
+    fun openInspectionForm(equipmentType: String) { _state.update { it.copy(screen = Screen.InspectionForm(equipmentType)) } }
+
+    fun saveInspection(
+        projectId: Long,
+        equipmentType: String,
+        operatorName: String,
+        machineHours: Int,
+        notes: String,
+        points: List<InspectionPoint>
+    ) {
+        viewModelScope.launch {
+            inspectionRepo.createInspection(
+                projectId = projectId,
+                equipmentType = equipmentType,
+                operatorName = operatorName,
+                machineHours = machineHours,
+                notes = notes,
+                points = points
+            )
+            goInspections() // Retour à l'écran de sélection
+        }
+    }
+
+    fun observeInspectionsForProject(projectId: Long) = inspectionRepo.observeReportsForProject(projectId)
+
+    fun exportInspectionReport(report: InspectionDao.FullInspectionReport) {
+        val pdfFile = PdfGenerator.createInspectionPdf(context, report)
+        if (pdfFile != null) {
+            EmailSender.sendEmailWithAttachment(
+                context = context,
+                to = "", // Laisser vide pour que l'utilisateur choisisse
+                subject = "Fiche d'inspection - ${report.report.equipmentType}",
+                body = "Veuillez trouver ci-joint la fiche d'inspection.",
+                attachment = pdfFile
+            )
         }
     }
 

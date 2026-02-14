@@ -36,6 +36,7 @@ fun StartScreen(
     onDarkModeChanged: (Boolean) -> Unit,
     onOpenCarnet: () -> Unit,
     onOpenMap: () -> Unit,
+    onOpenInspections: () -> Unit,
     onLogout: (() -> Unit)? = null
 ) {
     val overlay = MaterialTheme.colorScheme.background.copy(alpha = if (isDarkMode) 0.62f else 0.70f)
@@ -109,6 +110,10 @@ fun StartScreen(
 
                 Button(onClick = onOpenCarnet, modifier = Modifier.fillMaxWidth()) {
                     Text("Carnet de battage (projets)")
+                }
+
+                Button(onClick = onOpenInspections, modifier = Modifier.fillMaxWidth()) {
+                    Text("Fiche d'inspection")
                 }
 
                 Button(onClick = onOpenMap, modifier = Modifier.fillMaxWidth()) {

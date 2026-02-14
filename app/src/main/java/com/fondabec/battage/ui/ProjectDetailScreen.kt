@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -41,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -64,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.rememberAsyncImagePainter
+import com.fondabec.battage.data.InspectionDao
 import com.fondabec.battage.data.PhotoEntity
 import com.fondabec.battage.data.PileEntity
 import com.fondabec.battage.data.ProjectDocumentEntity
@@ -74,6 +77,9 @@ import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.round
 
 private enum class QuickAddMode { TOTAL, BY_GAUGE }
@@ -94,6 +100,7 @@ fun ProjectDetailScreen(
     observePiles: () -> Flow<List<PileEntity>>,
     observePhotos: () -> Flow<List<PhotoEntity>>,
     observeDocuments: () -> Flow<List<ProjectDocumentEntity>>,
+    observeInspections: () -> Flow<List<InspectionDao.FullInspectionReport>>,
     onBack: () -> Unit,
     onSaveProject: (name: String, city: String) -> Unit,
     onUpdateProjectLocation: (
@@ -116,16 +123,16 @@ fun ProjectDetailScreen(
     onAddPhoto: (photoUri: String) -> Unit,
     onUpdatePhoto: (photoId: Long, includeInReport: Boolean) -> Unit,
     onDeletePhoto: (photoId: Long) -> Unit,
-
-    // NOUVEAUX CALLBACKS POUR LES DOCS
     onUploadTechnicalDocument: (uri: Uri, title: String) -> Unit,
     onDeleteTechnicalDocument: (doc: ProjectDocumentEntity) -> Unit,
-    onViewTechnicalDocument: (doc: ProjectDocumentEntity) -> Unit // <--- AJOUTÉ
+    onViewTechnicalDocument: (doc: ProjectDocumentEntity) -> Unit,
+    onExportInspection: (report: InspectionDao.FullInspectionReport) -> Unit
 ) {
     val project by observeProject().collectAsStateWithLifecycle(initialValue = null)
     val piles by observePiles().collectAsStateWithLifecycle(initialValue = emptyList())
     val photos by observePhotos().collectAsStateWithLifecycle(initialValue = emptyList())
     val documents by observeDocuments().collectAsStateWithLifecycle(initialValue = emptyList())
+    val inspections by observeInspections().collectAsStateWithLifecycle(initialValue = emptyList())
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -523,7 +530,7 @@ fun ProjectDetailScreen(
                             Icon(Icons.Default.Description, contentDescription = null)
                         },
                         headlineContent = { Text(doc.title) },
-                        supportingContent = { Text("Ajouté le: ${java.text.SimpleDateFormat("dd/MM/yyyy").format(java.util.Date(doc.addedAtEpochMs))}") },
+                        supportingContent = { Text("Ajouté le: ${SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(doc.addedAtEpochMs))}") },
                         trailingContent = {
                             Row {
                                 // --- NOUVEAU BOUTON : VOIR DANS L'APP ---
@@ -541,13 +548,40 @@ fun ProjectDetailScreen(
 
             item {
                 Button(
-                    onClick = { techDocLauncher.launch("application/pdf") },
+                    onClick = { techDocLauncher.launch("*/*") },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Ajouter un document technique")
                 }
             }
             // ------------------------------------
+            
+            // --- SECTION FICHES D'INSPECTION ---
+            item {
+                Text("Fiches d'inspection", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
+            }
+
+            if (inspections.isNotEmpty()) {
+                items(inspections, key = { it.report.id }) { report ->
+                    ListItem(
+                        leadingContent = {
+                            Icon(Icons.Default.PictureAsPdf, contentDescription = null)
+                        },
+                        headlineContent = { Text(report.report.equipmentType) },
+                        supportingContent = { Text("Le ${SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(report.report.dateEpochMs))} par ${report.report.operatorName}") },
+                        trailingContent = {
+                            OutlinedButton(onClick = { onExportInspection(report) }) {
+                                Text("Exporter")
+                            }
+                        }
+                    )
+                }
+            } else {
+                item {
+                    Text("Aucune fiche d'inspection pour ce projet.")
+                }
+            }
+            // -------------------------------------
 
             item {
                 val p = project

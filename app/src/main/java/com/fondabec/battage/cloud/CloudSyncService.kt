@@ -4,12 +4,14 @@ import android.content.Context
 import android.util.Log
 import androidx.core.net.toUri
 import com.fondabec.battage.data.AppDatabase
+import com.fondabec.battage.data.InspectionPointEntity
+import com.fondabec.battage.data.InspectionReportEntity
 import com.fondabec.battage.data.MapPointEntity
 import com.fondabec.battage.data.PhotoEntity
 import com.fondabec.battage.data.PileEntity
 import com.fondabec.battage.data.PileHotspotEntity
 import com.fondabec.battage.data.ProjectEntity
-import com.fondabec.battage.utils.ImageHelper // Assurez-vous que l'import correspond à votre package
+import com.fondabec.battage.utils.ImageHelper // Assurez-vous que l\'import correspond à votre package
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
@@ -40,8 +42,8 @@ class CloudSyncService(
     private var mapPointsListener: ListenerRegistration? = null
     private var adminListener: ListenerRegistration? = null
 
-    // projectRemoteId -> (pilesListener, hotspotsListener, photosListener)
-    private val subListeners = mutableMapOf<String, Triple<ListenerRegistration, ListenerRegistration, ListenerRegistration>>()
+    // projectRemoteId -> (pilesListener, hotspotsListener, photosListener, inspectionsListener)
+    private val subListeners = mutableMapOf<String, Quadruple<ListenerRegistration, ListenerRegistration, ListenerRegistration, ListenerRegistration>>()
 
     @Volatile private var isAdmin: Boolean = false
     fun isAdminCached(): Boolean = isAdmin
@@ -144,10 +146,11 @@ class CloudSyncService(
         adminListener?.remove(); adminListener = null
         isAdmin = false
 
-        for ((_, triple) in subListeners) {
-            triple.first.remove()
-            triple.second.remove()
-            triple.third.remove()
+        for ((_, quad) in subListeners) {
+            quad.first.remove()
+            quad.second.remove()
+            quad.third.remove()
+            quad.fourth.remove()
         }
         subListeners.clear()
     }
@@ -230,14 +233,40 @@ class CloudSyncService(
                 }
             }
 
-        subListeners[projectRemoteId] = Triple(pilesReg, hotspotsReg, photosReg)
+        val inspectionsReg = firestore.collection("projects").document(projectRemoteId)
+            .collection("inspections")
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    Log.w(tag, "inspectionsListener($projectRemoteId) error", err)
+                    return@addSnapshotListener
+                }
+                val s = snap ?: return@addSnapshotListener
+                for (change in s.documentChanges) {
+                    val doc = change.document
+                    val remoteInspectionId = doc.id
+                    when (change.type) {
+                        DocumentChange.Type.ADDED,
+                        DocumentChange.Type.MODIFIED -> scope.launch {
+                            applyInspectionReportFromRemote(projectRemoteId, remoteInspectionId, doc.data)
+                        }
+                        DocumentChange.Type.REMOVED -> scope.launch {
+                            val localProjectId =
+                                db.projectDao().getLocalIdByRemoteId(projectRemoteId) ?: return@launch
+                            db.inspectionDao().deleteByRemoteId(localProjectId, remoteInspectionId)
+                        }
+                    }
+                }
+            }
+
+        subListeners[projectRemoteId] = Quadruple(pilesReg, hotspotsReg, photosReg, inspectionsReg)
     }
 
     private fun removeProjectSubListeners(projectRemoteId: String) {
-        val triple = subListeners.remove(projectRemoteId) ?: return
-        triple.first.remove()
-        triple.second.remove()
-        triple.third.remove()
+        val quad = subListeners.remove(projectRemoteId) ?: return
+        quad.first.remove()
+        quad.second.remove()
+        quad.third.remove()
+        quad.fourth.remove()
     }
 
     // -------------------------
@@ -497,6 +526,52 @@ class CloudSyncService(
         }
     }
 
+    private suspend fun applyInspectionReportFromRemote(projectRemoteId: String, inspectionRemoteId: String, data: Map<String, Any?>) {
+        val projectId = db.projectDao().getLocalIdByRemoteId(projectRemoteId) ?: return
+
+        val ownerUid = data.str("ownerUid")
+        val equipmentType = data.str("equipmentType")
+        val operatorName = data.str("operatorName")
+        val machineHours = data.long("machineHours").toInt()
+        val notes = data.str("notes")
+        val date = data.long("dateEpochMs")
+        val updatedAt = data.long("updatedAtEpochMs")
+
+        val dao = db.inspectionDao()
+        val localId = dao.getLocalIdByRemoteId(projectId, inspectionRemoteId)
+
+        if (localId == null) {
+            val report = InspectionReportEntity(
+                projectId = projectId,
+                equipmentType = equipmentType,
+                dateEpochMs = date,
+                operatorName = operatorName,
+                machineHours = machineHours,
+                notes = notes,
+                remoteId = inspectionRemoteId,
+                ownerUid = ownerUid,
+                updatedAtEpochMs = updatedAt
+            )
+            val newId = dao.insertReport(report)
+            // We are not syncing points from remote to local for now
+        } else {
+            val local = dao.getFullReportById(localId) ?: return
+            if (updatedAt != 0L && local.report.updatedAtEpochMs > updatedAt) return
+
+            dao.updateFromRemote(
+                reportId = localId,
+                equipmentType = equipmentType,
+                dateEpochMs = date,
+                operatorName = operatorName,
+                machineHours = machineHours,
+                notes = notes,
+                remoteId = inspectionRemoteId,
+                ownerUid = ownerUid,
+                updatedAtEpochMs = updatedAt
+            )
+        }
+    }
+
     // -------------------------
     // PUSH ROOM -> REMOTE
     // -------------------------
@@ -640,6 +715,37 @@ class CloudSyncService(
                     .await()
             } catch (e: Exception) {
                 Log.w(tag, "pushHotspot failed", e)
+            }
+        }
+    }
+
+    fun pushInspectionReport(reportId: Long) {
+        scope.launch {
+            try {
+                val fullReport = db.inspectionDao().getFullReportById(reportId) ?: return@launch
+                val report = fullReport.report
+                val project = db.projectDao().getById(report.projectId) ?: return@launch
+                if (project.remoteId.isBlank() || report.remoteId.isBlank()) return@launch
+
+                val payload = hashMapOf<String, Any?>(
+                    "ownerUid" to report.ownerUid,
+                    "equipmentType" to report.equipmentType,
+                    "dateEpochMs" to report.dateEpochMs,
+                    "operatorName" to report.operatorName,
+                    "machineHours" to report.machineHours,
+                    "notes" to report.notes,
+                    "updatedAtEpochMs" to report.updatedAtEpochMs,
+                    "points" to fullReport.points.map { 
+                        mapOf("label" to it.label, "status" to it.status)
+                    }
+                )
+
+                firestore.collection("projects").document(project.remoteId)
+                    .collection("inspections").document(report.remoteId)
+                    .set(payload, SetOptions.merge())
+                    .await()
+            } catch (e: Exception) {
+                Log.w(tag, "pushInspectionReport failed", e)
             }
         }
     }
@@ -875,3 +981,6 @@ class CloudSyncService(
 
     private fun Map<String, Any?>.bool(key: String): Boolean = (this[key] as? Boolean) ?: false
 }
+
+// Pour les sub-listeners de projet
+private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)

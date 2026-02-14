@@ -1,6 +1,8 @@
 package com.fondabec.battage.data
 
+import android.content.Context
 import android.net.Uri
+import android.webkit.MimeTypeMap
 import com.fondabec.battage.cloud.CloudIds
 import com.fondabec.battage.cloud.CloudSyncHolder
 import com.google.firebase.firestore.FirebaseFirestore
@@ -19,10 +21,11 @@ class ProjectDocumentRepository(
     fun observeDocuments(projectId: Long): Flow<List<ProjectDocumentEntity>> = dao.observeDocumentsByProject(projectId)
 
     /**
-     * Upload le PDF vers Firebase Storage, récupère l'URL, crée le lien Firestore
+     * Upload le fichier vers Firebase Storage, récupère l'URL, crée le lien Firestore
      * et sauvegarde le tout dans la base locale Room.
      */
     suspend fun addDocument(
+        context: Context,
         projectId: Long,
         localUri: Uri,
         title: String
@@ -37,27 +40,30 @@ class ProjectDocumentRepository(
                 return@withContext Result.failure(Exception("Permission refusée"))
             }
 
-            // 2. Préparation des chemins
-            val remoteFileName = "${UUID.randomUUID()}.pdf"
-            // Structure: projects/{remoteProjectId}/documents/{uuid}.pdf
+            // 2. Déterminer l'extension et le type MIME
+            val fileExtension = MimeTypeMap.getSingleton().getExtensionFromMimeType(context.contentResolver.getType(localUri))
+            val mimeType = context.contentResolver.getType(localUri) ?: "application/octet-stream"
+
+            // 3. Préparation des chemins
+            val remoteFileName = "${UUID.randomUUID()}.$fileExtension"
             val storagePath = "projects/${project.remoteId}/documents/$remoteFileName"
             val storageRef = FirebaseStorage.getInstance().reference.child(storagePath)
 
-            // 3. Upload (bloquant)
+            // 4. Upload (bloquant)
             storageRef.putFile(localUri).await()
             val downloadUrl = storageRef.downloadUrl.await().toString()
 
-            // 4. Création des métadonnées
+            // 5. Création des métadonnées
             val now = System.currentTimeMillis()
             val newRemoteId = CloudIds.newRemoteId()
 
-            // 5. Sauvegarde Firestore
+            // 6. Sauvegarde Firestore
             val firestoreData = hashMapOf(
                 "projectId" to project.remoteId,
                 "title" to title,
                 "storagePath" to storagePath,
                 "downloadUrl" to downloadUrl,
-                "mimeType" to "application/pdf",
+                "mimeType" to mimeType,
                 "addedAt" to now,
                 "updatedAt" to now,
                 "ownerUid" to userUid
@@ -71,12 +77,13 @@ class ProjectDocumentRepository(
                 .set(firestoreData)
                 .await()
 
-            // 6. Sauvegarde Locale (Room)
+            // 7. Sauvegarde Locale (Room)
             val localEntity = ProjectDocumentEntity(
                 projectId = projectId,
                 title = title,
                 storagePath = storagePath,
                 downloadUrl = downloadUrl,
+                mimeType = mimeType,
                 addedAtEpochMs = now,
                 updatedAtEpochMs = now,
                 remoteId = newRemoteId,
