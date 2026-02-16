@@ -53,4 +53,17 @@ class InspectionRepository(
 
         CloudSyncHolder.pushInspectionReport(reportId)
     }
+
+    suspend fun deleteInspection(reportId: Long) = withContext(Dispatchers.IO) {
+        val report = inspectionDao.getReportById(reportId) ?: return@withContext
+        val project = projectDao.getById(report.projectId) ?: return@withContext
+
+        if (!CloudSyncHolder.canWrite(report.ownerUid)) return@withContext
+
+        if (report.remoteId.isNotBlank() && project.remoteId.isNotBlank()) {
+            CloudSyncHolder.sync()?.deleteInspection(project.remoteId, report.remoteId)
+        }
+
+        inspectionDao.deleteById(reportId)
+    }
 }

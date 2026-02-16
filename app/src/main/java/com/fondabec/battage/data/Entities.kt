@@ -5,6 +5,19 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+enum class PileShape(val displayName: String) {
+    CIRCLE("Cercle"),
+    SQUARE("Carré"),
+    TRIANGLE("Triangle"),
+    DIAMOND("Losange"),
+    HEXAGON("Hexagone"),
+    SQUARE_HEX("Carré/Hexagone"),
+    CIRCLE_HEX("Cercle/Hexagone"),
+    SQUARE_SQUARE("Carré/Carré"),
+    CIRCLE_CIRCLE("Cercle/Cercle"),
+    TRIANGLE_TRIANGLE("Triangle/Triangle")
+}
+
 @Entity(
     tableName = "projects",
     indices = [
@@ -61,6 +74,7 @@ data class PileEntity(
     val depthFt: Double = 0.0,
     val implanted: Boolean = false,
     val rebattage: Boolean = false,
+    val shape: String = "",
 
     // Sync timestamps
     val createdAtEpochMs: Long = 0L,
@@ -84,7 +98,7 @@ data class PileEntity(
             entity = PileEntity::class,
             parentColumns = ["id"],
             childColumns = ["pileId"],
-            onDelete = ForeignKey.SET_NULL
+            onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [

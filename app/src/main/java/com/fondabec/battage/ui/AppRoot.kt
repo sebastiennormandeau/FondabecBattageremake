@@ -78,7 +78,8 @@ fun AppRoot(
             onUploadTechnicalDocument = { uri, title -> vm.uploadTechnicalDocument(s.projectId, uri, title) },
             onDeleteTechnicalDocument = { doc -> vm.deleteTechnicalDocument(doc) },
             onViewTechnicalDocument = { doc -> vm.openDocumentViewer(doc) },
-            onExportInspection = { report -> vm.exportInspectionReport(report) }
+            onExportInspection = { report -> vm.exportInspectionReport(report) },
+            onDeleteInspection = { reportId -> vm.deleteInspection(reportId) }
         )
 
         is Screen.PileDetail -> PileDetailScreen(
@@ -86,7 +87,7 @@ fun AppRoot(
             pileId = s.pileId,
             observePile = { vm.observePile(s.pileId) },
             onBack = { vm.backFromPileScreen(s.projectId, s.returnToPlan, s.returnPlanPageIndex) },
-            onSave = { pileNo, gaugeIn, depthFt, implanted, rebattage ->
+            onSave = { pileNo, gaugeIn, depthFt, implanted, rebattage, shape ->
                 vm.savePileAndBack(
                     projectId = s.projectId,
                     pileId = s.pileId,
@@ -95,6 +96,7 @@ fun AppRoot(
                     depthFt = depthFt,
                     implanted = implanted,
                     rebattage = rebattage,
+                    shape = shape,
                     returnToPlan = s.returnToPlan,
                     returnPlanPageIndex = s.returnPlanPageIndex
                 )
@@ -109,6 +111,7 @@ fun AppRoot(
             observePiles = { vm.observePiles(s.projectId) },
             observeHotspotsForPage = { page -> vm.observeHotspots(s.projectId, page) },
             onAddHotspot = { page, x, y -> vm.addHotspot(s.projectId, page, x, y) },
+            onDeleteHotspot = { hotspotId -> vm.deleteHotspot(hotspotId) },
             onHotspotTap = { hotspotId, currentPage -> vm.onHotspotTap(s.projectId, hotspotId, currentPage) },
             onUndoLastHotspot = { page -> vm.undoLastHotspot(s.projectId, page) },
             onBack = { vm.openProject(s.projectId) }

@@ -159,7 +159,8 @@ class PileRepository(
         gaugeIn: String,
         depthFt: Double,
         implanted: Boolean,
-        rebattage: Boolean
+        rebattage: Boolean,
+        shape: String
     ) = withContext(Dispatchers.IO) {
         val pile = dao.getById(pileId) ?: return@withContext
         if (!CloudSyncHolder.canWrite(pile.ownerUid)) return@withContext
@@ -186,6 +187,7 @@ class PileRepository(
             depthFt = depthFt,
             implanted = implanted,
             rebattage = rebattage,
+            shape = shape,
             updatedAtEpochMs = now
         )
 

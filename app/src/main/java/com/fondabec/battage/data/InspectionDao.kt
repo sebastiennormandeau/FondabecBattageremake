@@ -33,6 +33,12 @@ interface InspectionDao {
     @Query("SELECT * FROM inspection_reports WHERE id = :reportId")
     suspend fun getFullReportById(reportId: Long): FullInspectionReport?
 
+    @Query("SELECT * FROM inspection_reports WHERE id = :reportId")
+    suspend fun getReportById(reportId: Long): InspectionReportEntity?
+
+    @Query("DELETE FROM inspection_reports WHERE id = :reportId")
+    suspend fun deleteById(reportId: Long)
+
     // --- Cloud Sync ---
 
     @Query("SELECT id FROM inspection_reports WHERE projectId = :projectId AND remoteId = :remoteId LIMIT 1")

@@ -77,6 +77,17 @@ class PileHotspotRepository(
         last.pileId
     }
 
+    suspend fun deleteHotspot(hotspotId: Long) = withContext(Dispatchers.IO) {
+        val hotspot = dao.getById(hotspotId) ?: return@withContext
+        if (!CloudSyncHolder.canWrite(hotspot.ownerUid)) return@withContext
+
+        dao.deleteById(hotspotId)
+
+        if (hotspot.remoteId.isNotBlank()) {
+            CloudSyncHolder.sync()?.deleteHotspot(hotspot.projectId, hotspot.remoteId)
+        }
+    }
+
     suspend fun clearProject(projectId: Long) = withContext(Dispatchers.IO) {
         val project = projectDao.getById(projectId) ?: return@withContext
         if (!CloudSyncHolder.canWrite(project.ownerUid)) return@withContext

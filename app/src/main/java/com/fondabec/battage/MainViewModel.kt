@@ -190,6 +190,12 @@ class MainViewModel(
         }
     }
 
+    fun deleteInspection(reportId: Long) {
+        viewModelScope.launch {
+            inspectionRepo.deleteInspection(reportId)
+        }
+    }
+
     fun observeInspectionsForProject(projectId: Long) = inspectionRepo.observeReportsForProject(projectId)
 
     fun exportInspectionReport(report: InspectionDao.FullInspectionReport) {
@@ -287,11 +293,12 @@ class MainViewModel(
         depthFt: Double,
         implanted: Boolean,
         rebattage: Boolean,
+        shape: String,
         returnToPlan: Boolean,
         returnPlanPageIndex: Int
     ) {
         viewModelScope.launch {
-            pileRepo.updatePile(projectId, pileId, pileNo, gaugeIn, depthFt, implanted, rebattage)
+            pileRepo.updatePile(projectId, pileId, pileNo, gaugeIn, depthFt, implanted, rebattage, shape)
             backFromPile(projectId, returnToPlan, returnPlanPageIndex)
         }
     }
@@ -312,6 +319,14 @@ class MainViewModel(
         viewModelScope.launch {
             val pileId = pileRepo.addPile(projectId)
             hotspotRepo.addHotspot(projectId, pageIndex, xNorm, yNorm, pileId)
+        }
+    }
+
+    fun deleteHotspot(hotspotId: Long) {
+        viewModelScope.launch {
+            val hotspot = hotspotRepo.getHotspot(hotspotId) ?: return@launch
+            hotspotRepo.deleteHotspot(hotspotId)
+            hotspot.pileId?.let { pileRepo.deletePile(it) }
         }
     }
 

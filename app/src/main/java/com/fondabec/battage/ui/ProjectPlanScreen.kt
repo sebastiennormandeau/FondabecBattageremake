@@ -67,7 +67,7 @@ import java.io.File
 import kotlin.math.min
 import kotlin.math.sqrt
 
-private enum class PlanMode { NAV, ADD }
+private enum class PlanMode { NAV, ADD, DEL }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,6 +78,7 @@ fun ProjectPlanScreen(
     observePiles: () -> Flow<List<PileEntity>>,
     observeHotspotsForPage: (pageIndex: Int) -> Flow<List<PileHotspotEntity>>,
     onAddHotspot: (pageIndex: Int, xNorm: Float, yNorm: Float) -> Unit,
+    onDeleteHotspot: (hotspotId: Long) -> Unit,
     onHotspotTap: (hotspotId: Long, currentPageIndex: Int) -> Unit,
     onUndoLastHotspot: (pageIndex: Int) -> Unit,
     onBack: () -> Unit
@@ -330,7 +331,11 @@ fun ProjectPlanScreen(
                                     }
                                 }
                                 if (bestId != null && bestD2 <= threshold * threshold) {
-                                    onHotspotTap(bestId, pageIndex)
+                                    if (mode == PlanMode.DEL) {
+                                        onDeleteHotspot(bestId)
+                                    } else {
+                                        onHotspotTap(bestId, pageIndex)
+                                    }
                                 }
                             }
                         }
@@ -351,13 +356,13 @@ fun ProjectPlanScreen(
                     val fit = imageFitInfo(image, containerSize)
 
                     val s = scale.coerceAtLeast(1f)
-                    val minOuter = 1.8.dp.toPx()
-                    val maxOuter = 4.8.dp.toPx()
+                    val minOuter = 1.2.dp.toPx() // Was 1.8
+                    val maxOuter = 3.2.dp.toPx() // Was 4.8
                     val outer = (maxOuter / s).coerceIn(minOuter, maxOuter)
 
-                    val ringStroke = (1.2.dp.toPx() / s).coerceIn(0.6.dp.toPx(), 1.2.dp.toPx())
+                    val ringStroke = (0.8.dp.toPx() / s).coerceIn(0.4.dp.toPx(), 0.8.dp.toPx()) // Was 1.2, 0.6
                     val arm = outer * 1.15f
-                    val crossStroke = (1.4.dp.toPx() / s).coerceIn(0.7.dp.toPx(), 1.4.dp.toPx())
+                    val crossStroke = (1.0.dp.toPx() / s).coerceIn(0.5.dp.toPx(), 1.0.dp.toPx()) // Was 1.4, 0.7
                     val haloStroke = (crossStroke * 1.9f).coerceAtLeast(crossStroke + 1f)
 
                     hotspots.forEach { h ->
@@ -383,6 +388,7 @@ fun ProjectPlanScreen(
                             }
                         } else {
                              val ringColor = when {
+                                mode == PlanMode.DEL -> Color.Red
                                 pile == null -> Color(0xFFE57373) // Pas encore de pieu associé
                                 pile.implanted && hasDepth -> green
                                 pile.implanted -> Color(0xFFFFD54F) // Jaune
@@ -412,6 +418,7 @@ fun ProjectPlanScreen(
                         Spacer(Modifier.weight(1f))
                         MiniToggle("NAV", selected = mode == PlanMode.NAV) { mode = PlanMode.NAV }
                         MiniToggle("ADD", selected = mode == PlanMode.ADD) { mode = PlanMode.ADD }
+                        MiniToggle("DEL", selected = mode == PlanMode.DEL) { mode = PlanMode.DEL }
                         MiniTextButton("FIT") { resetView() }
                         MiniTextButton(if (controlsVisible) "▴" else "▾") { controlsVisible = !controlsVisible }
                     }

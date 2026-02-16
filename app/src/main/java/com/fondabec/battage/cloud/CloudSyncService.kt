@@ -268,7 +268,19 @@ class CloudSyncService(
         quad.third.remove()
         quad.fourth.remove()
     }
-
+    fun deleteInspection(projectRemoteId: String, inspectionRemoteId: String) {
+        scope.launch {
+            try {
+                firestore.collection("projects").document(projectRemoteId)
+                    .collection("inspections").document(inspectionRemoteId)
+                    .delete()
+                    .await()
+                Log.d(tag, "Deleted inspection $inspectionRemoteId from project $projectRemoteId in cloud")
+            } catch (e: Exception) {
+                Log.e(tag, "Error deleting inspection $inspectionRemoteId from cloud", e)
+            }
+        }
+    }
     // -------------------------
     // APPLY REMOTE -> ROOM
     // -------------------------
@@ -351,6 +363,7 @@ class CloudSyncService(
         val depthFt = data.double("depthFt")
         val implanted = data.bool("implanted")
         val rebattage = data.bool("rebattage")
+        val shape = data.str("shape") // Ligne ajoutée
         val createdAt = data.long("createdAtEpochMs")
         val updatedAt = data.long("updatedAtEpochMs")
 
@@ -366,6 +379,7 @@ class CloudSyncService(
                     depthFt = depthFt,
                     implanted = implanted,
                     rebattage = rebattage,
+                    shape = shape, // Ligne ajoutée
                     createdAtEpochMs = createdAt,
                     updatedAtEpochMs = updatedAt,
                     remoteId = pileRemoteId,
@@ -383,6 +397,7 @@ class CloudSyncService(
                 depthFt = depthFt,
                 implanted = implanted,
                 rebattage = rebattage,
+                shape = shape, // Ligne ajoutée
                 createdAtEpochMs = if (createdAt == 0L) local.createdAtEpochMs else createdAt,
                 updatedAtEpochMs = if (updatedAt == 0L) local.updatedAtEpochMs else updatedAt,
                 remoteId = pileRemoteId,
@@ -674,6 +689,7 @@ class CloudSyncService(
                     "depthFt" to pile.depthFt,
                     "implanted" to pile.implanted,
                     "rebattage" to pile.rebattage,
+                    "shape" to pile.shape, // <-- CORRECTION AJOUTÉE ICI
                     "createdAtEpochMs" to pile.createdAtEpochMs,
                     "updatedAtEpochMs" to pile.updatedAtEpochMs
                 )

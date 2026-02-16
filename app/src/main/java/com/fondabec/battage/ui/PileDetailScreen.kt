@@ -13,7 +13,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -33,6 +36,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fondabec.battage.data.PileEntity
+import com.fondabec.battage.data.PileShape
 import kotlinx.coroutines.flow.Flow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,13 +46,15 @@ fun PileDetailScreen(
     pileId: Long,
     observePile: () -> Flow<PileEntity?>,
     onBack: () -> Unit,
-    onSave: (pileNo: String, gaugeIn: String, depthFt: Double, implanted: Boolean, rebattage: Boolean) -> Unit,
+    onSave: (pileNo: String, gaugeIn: String, depthFt: Double, implanted: Boolean, rebattage: Boolean, shape: String) -> Unit,
     onDelete: () -> Unit
 ) {
     val pile by observePile().collectAsStateWithLifecycle(initialValue = null)
 
-    val gauges = listOf("4 1/2 0.250", "4 1/2 0.290", "5 1/2 0.304","5 1/2 0.361","5 1/2 0.415",
-        "7 0.317","7 0.362","7 0.453", "9 5/8 0.313","9 5/8 0.352","9 5/8 0.395")
+    val gauges = listOf(
+        "4 1/2 0.250", "4 1/2 0.290", "5 1/2 0.304", "5 1/2 0.361", "5 1/2 0.415",
+        "7 0.317", "7 0.362", "7 0.453", "9 5/8 0.313", "9 5/8 0.352", "9 5/8 0.395"
+    )
 
     var initialized by remember(pileId) { mutableStateOf(false) }
 
@@ -57,6 +63,7 @@ fun PileDetailScreen(
     var implanted by remember(pileId) { mutableStateOf(false) }
     var rebattage by remember(pileId) { mutableStateOf(false) }
     var depthField by remember(pileId) { mutableStateOf(TextFieldValue("")) }
+    var shape by remember(pileId) { mutableStateOf("") }
 
     LaunchedEffect(pile) {
         val p = pile ?: return@LaunchedEffect
@@ -66,6 +73,7 @@ fun PileDetailScreen(
             implanted = p.implanted
             rebattage = p.rebattage
             depthField = if (p.depthFt == 0.0) TextFieldValue("") else TextFieldValue(p.depthFt.toString())
+            shape = p.shape
             initialized = true
         }
     }
@@ -131,6 +139,10 @@ fun PileDetailScreen(
                 )
             }
 
+            item {
+                ShapeDropdownSelector(selectedShape = shape, onShapeSelected = { shape = it })
+            }
+
             item { Text("Calibre (pouces)") }
 
             item {
@@ -182,9 +194,50 @@ fun PileDetailScreen(
 
             item {
                 Button(
-                    onClick = { onSave(pileNoInput, gaugeIn, depthFt, implanted, rebattage) },
+                    onClick = { onSave(pileNoInput, gaugeIn, depthFt, implanted, rebattage, shape) },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Enregistrer") }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ShapeDropdownSelector(
+    selectedShape: String,
+    onShapeSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val shapes = PileShape.values()
+    val selectedShapeDisplayName = shapes.find { it.name == selectedShape }?.displayName ?: "Choisir…"
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded }
+    ) {
+        OutlinedTextField(
+            value = selectedShapeDisplayName,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Forme") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            shapes.forEach { shape ->
+                DropdownMenuItem(
+                    text = { Text(shape.displayName) },
+                    onClick = {
+                        onShapeSelected(shape.name)
+                        expanded = false
+                    }
+                )
             }
         }
     }

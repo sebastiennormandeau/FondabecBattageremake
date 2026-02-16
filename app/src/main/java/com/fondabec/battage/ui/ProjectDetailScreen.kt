@@ -3,6 +3,7 @@ package com.fondabec.battage.ui
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -126,7 +128,8 @@ fun ProjectDetailScreen(
     onUploadTechnicalDocument: (uri: Uri, title: String) -> Unit,
     onDeleteTechnicalDocument: (doc: ProjectDocumentEntity) -> Unit,
     onViewTechnicalDocument: (doc: ProjectDocumentEntity) -> Unit,
-    onExportInspection: (report: InspectionDao.FullInspectionReport) -> Unit
+    onExportInspection: (report: InspectionDao.FullInspectionReport) -> Unit,
+    onDeleteInspection: (reportId: Long) -> Unit
 ) {
     val project by observeProject().collectAsStateWithLifecycle(initialValue = null)
     val piles by observePiles().collectAsStateWithLifecycle(initialValue = emptyList())
@@ -137,6 +140,7 @@ fun ProjectDetailScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isExporting by remember { mutableStateOf(false) }
+    var exportError by remember { mutableStateOf<String?>(null) }
 
     val defaultProjectName = "Nouveau projet"
 
@@ -147,6 +151,8 @@ fun ProjectDetailScreen(
     var locationEditedByUser by remember(projectId) { mutableStateOf(false) }
 
     var showPdfDialog by remember { mutableStateOf(false) }
+    var reportToDelete by remember { mutableStateOf<InspectionDao.FullInspectionReport?>(null) }
+
 
     // --- Gestion ajout doc technique ---
     var showDocNameDialog by remember { mutableStateOf(false) }
@@ -242,6 +248,41 @@ fun ProjectDetailScreen(
             }
         )
     }
+
+    exportError?.let { error ->
+        AlertDialog(
+            onDismissRequest = { exportError = null },
+            title = { Text("Erreur d'exportation") },
+            text = { Text(error) },
+            confirmButton = {
+                TextButton(onClick = { exportError = null }) {
+                    Text("Fermer")
+                }
+            }
+        )
+    }
+
+    reportToDelete?.let { report ->
+        val date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(report.report.dateEpochMs))
+        AlertDialog(
+            onDismissRequest = { reportToDelete = null },
+            title = { Text("Supprimer la fiche?") },
+            text = { Text("Voulez-vous vraiment supprimer la fiche d'inspection pour ${report.report.equipmentType} du $date?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteInspection(report.report.id)
+                        reportToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Supprimer") }
+            },
+            dismissButton = {
+                TextButton(onClick = { reportToDelete = null }) { Text("Annuler") }
+            }
+        )
+    }
+
 
     fun formatLocation(p: ProjectEntity): String {
         val parts = buildList {
@@ -570,8 +611,13 @@ fun ProjectDetailScreen(
                         headlineContent = { Text(report.report.equipmentType) },
                         supportingContent = { Text("Le ${SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(report.report.dateEpochMs))} par ${report.report.operatorName}") },
                         trailingContent = {
-                            OutlinedButton(onClick = { onExportInspection(report) }) {
-                                Text("Exporter")
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                OutlinedButton(onClick = { onExportInspection(report) }) {
+                                    Text("Exporter")
+                                }
+                                IconButton(onClick = { reportToDelete = report }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Supprimer")
+                                }
                             }
                         }
                     )
@@ -600,11 +646,8 @@ fun ProjectDetailScreen(
                                     projectName = pr.name.ifBlank { "Projet ${pr.id}" }
                                 )
                             } catch (e: Exception) {
-                                Toast.makeText(
-                                    context,
-                                    "Échec de l'exportation du rapport: ${e.message ?: "erreur"}",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                                Log.e("ProjectDetail", "Export failed", e)
+                                exportError = e.toString()
                             } finally {
                                 isExporting = false
                             }

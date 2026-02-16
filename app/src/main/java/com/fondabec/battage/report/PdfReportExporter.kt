@@ -8,6 +8,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
@@ -19,6 +20,7 @@ import androidx.core.content.FileProvider
 import com.fondabec.battage.R
 import com.fondabec.battage.data.PhotoEntity
 import com.fondabec.battage.data.PileEntity
+import com.fondabec.battage.data.PileShape
 import com.fondabec.battage.data.ProjectEntity
 import com.google.firebase.Firebase
 import com.google.firebase.storage.storage
@@ -32,6 +34,8 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * Exporte un rapport de projet au format PDF.
@@ -236,15 +240,21 @@ object PdfReportExporter {
 
         piles.forEach { pile ->
             checkPageBreak(20f)
-            val no = pile.pileNo.trim().ifBlank { "(auto)" }
+
+            val fullNo = pile.pileNo.trim()
+            val numberToDraw = if (fullNo.contains('-')) fullNo.substringAfterLast('-', "") else fullNo.ifBlank { "(auto)" }
+
             val gauge = pile.gaugeIn.trim().ifBlank { "—" }
             val depth = if (pile.depthFt == 0.0) "—" else String.format(Locale.CANADA, "%.2f", pile.depthFt)
             val status = if (pile.implanted) "Implanté" else "Non implanté"
+            val rebattage = if (pile.rebattage) "Oui" else "Non"
 
-            currentCanvas.drawText(no, MARGIN + 5, cursorY, bodyPaint)
-            currentCanvas.drawText(gauge, MARGIN + 125, cursorY, bodyPaint)
-            currentCanvas.drawText(depth, MARGIN + 255, cursorY, bodyPaint)
-            currentCanvas.drawText(status, MARGIN + 385, cursorY, bodyPaint)
+            drawPileNumberWithShape(currentCanvas, MARGIN + 5, cursorY, pile, numberToDraw, bodyPaint)
+
+            currentCanvas.drawText(gauge, MARGIN + 85, cursorY, bodyPaint)
+            currentCanvas.drawText(depth, MARGIN + 205, cursorY, bodyPaint)
+            currentCanvas.drawText(status, MARGIN + 305, cursorY, bodyPaint)
+            currentCanvas.drawText(rebattage, MARGIN + 405, cursorY, bodyPaint)
             cursorY += 20f
         }
     }
@@ -255,11 +265,116 @@ object PdfReportExporter {
         cursorY += 12f
 
         currentCanvas.drawText("PIEU N°", MARGIN + 5, cursorY, headerPaint)
-        currentCanvas.drawText("CALIBRE (PO)", MARGIN + 125, cursorY, headerPaint)
-        currentCanvas.drawText("PROFONDEUR (FT)", MARGIN + 255, cursorY, headerPaint)
-        currentCanvas.drawText("STATUT", MARGIN + 385, cursorY, headerPaint)
+        currentCanvas.drawText("CALIBRE (PO)", MARGIN + 85, cursorY, headerPaint)
+        currentCanvas.drawText("PROFONDEUR (FT)", MARGIN + 205, cursorY, headerPaint)
+        currentCanvas.drawText("STATUT", MARGIN + 305, cursorY, headerPaint)
+        currentCanvas.drawText("REBATTAGE", MARGIN + 405, cursorY, headerPaint)
 
         cursorY += 25f
+    }
+
+    private fun drawHexagon(canvas: Canvas, cx: Float, cy: Float, radius: Float, paint: Paint) {
+        val hexPath = Path()
+        for (i in 0..5) {
+            val angle = 60.0 * i * 3.14159 / 180.0
+            val hx = cx + (radius * cos(angle)).toFloat()
+            val hy = cy + (radius * sin(angle)).toFloat()
+            if (i == 0) {
+                hexPath.moveTo(hx, hy)
+            } else {
+                hexPath.lineTo(hx, hy)
+            }
+        }
+        hexPath.close()
+        canvas.drawPath(hexPath, paint)
+    }
+
+    private fun drawPileNumberWithShape(canvas: Canvas, x: Float, y: Float, pile: PileEntity, text: String, paint: TextPaint) {
+        if (pile.shape.isBlank()) {
+            canvas.drawText(text, x + 30f, y, paint)
+            return
+        }
+
+        val shape = try { PileShape.valueOf(pile.shape) } catch (e: Exception) { PileShape.CIRCLE }
+
+        val textPaint = TextPaint(paint).apply {
+            textAlign = Paint.Align.CENTER
+            textSize = 7f
+        }
+        val shapePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            color = Color.BLACK
+            strokeWidth = 1f
+        }
+
+        val cx = x + 30f
+        val cy = y - 8f
+        val shapeRadius = 8f
+        val textY = cy - (textPaint.descent() + textPaint.ascent()) / 2
+
+        when (shape) {
+            PileShape.CIRCLE -> canvas.drawCircle(cx, cy, shapeRadius, shapePaint)
+            PileShape.SQUARE -> canvas.drawRect(cx - shapeRadius, cy - shapeRadius, cx + shapeRadius, cy + shapeRadius, shapePaint)
+            PileShape.DIAMOND -> {
+                val path = Path()
+                path.moveTo(cx, cy - shapeRadius)
+                path.lineTo(cx + shapeRadius, cy)
+                path.lineTo(cx, cy + shapeRadius)
+                path.lineTo(cx - shapeRadius, cy)
+                path.close()
+                canvas.drawPath(path, shapePaint)
+            }
+            PileShape.TRIANGLE -> {
+                val path = Path()
+                path.moveTo(cx, cy - shapeRadius)
+                path.lineTo(cx + shapeRadius, cy + shapeRadius)
+                path.lineTo(cx - shapeRadius, cy + shapeRadius)
+                path.close()
+                canvas.drawPath(path, shapePaint)
+            }
+            PileShape.HEXAGON -> {
+                drawHexagon(canvas, cx, cy, shapeRadius, shapePaint)
+            }
+            PileShape.SQUARE_HEX -> {
+                canvas.drawRect(cx - shapeRadius, cy - shapeRadius, cx + shapeRadius, cy + shapeRadius, shapePaint)
+                drawHexagon(canvas, cx, cy, shapeRadius * 0.7f, shapePaint)
+            }
+            PileShape.CIRCLE_HEX -> {
+                canvas.drawCircle(cx, cy, shapeRadius, shapePaint)
+                drawHexagon(canvas, cx, cy, shapeRadius * 0.7f, shapePaint)
+            }
+            PileShape.SQUARE_SQUARE -> {
+                canvas.drawRect(cx - shapeRadius, cy - shapeRadius, cx + shapeRadius, cy + shapeRadius, shapePaint)
+                canvas.drawRect(cx - shapeRadius * 0.5f, cy - shapeRadius * 0.5f, cx + shapeRadius * 0.5f, cy + shapeRadius * 0.5f, shapePaint)
+            }
+            PileShape.CIRCLE_CIRCLE -> {
+                canvas.drawCircle(cx, cy, shapeRadius, shapePaint)
+                canvas.drawCircle(cx, cy, shapeRadius * 0.5f, shapePaint)
+            }
+            PileShape.TRIANGLE_TRIANGLE -> {
+                // Dessine le triangle extérieur
+                val outerPath = Path()
+                outerPath.moveTo(cx, cy - shapeRadius)
+                outerPath.lineTo(cx + shapeRadius, cy + shapeRadius)
+                outerPath.lineTo(cx - shapeRadius, cy + shapeRadius)
+                outerPath.close()
+                canvas.drawPath(outerPath, shapePaint)
+
+                // CORRECTION: Dessine un triangle intérieur correctement centré
+                val innerRadius = shapeRadius * 0.5f
+                val innerOffsetY = shapeRadius * 0.25f // Petit décalage vers le bas pour centrer
+                val innerPath = Path()
+                innerPath.moveTo(cx, cy - innerRadius + innerOffsetY)
+                innerPath.lineTo(cx + innerRadius, cy + innerRadius + innerOffsetY)
+                innerPath.lineTo(cx - innerRadius, cy + innerRadius + innerOffsetY)
+                innerPath.close()
+                canvas.drawPath(innerPath, shapePaint)
+            }
+        }
+
+        if (text.isNotBlank()) {
+            canvas.drawText(text, cx, textY, textPaint)
+        }
     }
 
     private fun drawPhotosSection(photoBitmapMap: Map<PhotoEntity, Bitmap>) {
@@ -270,11 +385,7 @@ object PdfReportExporter {
         currentCanvas.drawText("Photos du Chantier", MARGIN, cursorY, titlePaint)
         cursorY += 20f
 
-        // --- MODE OPTIMISÉ (2 Photos MAX par page) ---
         val photoWidth = CONTENT_WIDTH
-
-        // MODIFICATION ICI : On passe de 0.50f à 0.55f pour gagner en hauteur
-        // C'est le maximum mathématique pour que 2 photos rentrent sur une page A4
         val photoHeight = photoWidth * 0.55f
 
         val rowHeightNeeded = photoHeight + 35f
@@ -327,8 +438,6 @@ object PdfReportExporter {
     private suspend fun downloadPhotoBitmaps(photos: List<PhotoEntity>): Map<PhotoEntity, Bitmap> = withContext(Dispatchers.IO) {
         if (photos.isEmpty()) return@withContext emptyMap()
         val storage = Firebase.storage
-        // La limite est ici. Pour l'augmenter, il faudrait changer cette valeur,
-        // mais attention à la mémoire du téléphone !
         val maxFileSize = 50L * 1024 * 1024 // 10 MB
 
         photos.map { photo ->
@@ -339,7 +448,6 @@ object PdfReportExporter {
                         photo to bitmap
                     }
                 } catch (e: Exception) {
-                    // C'est cette erreur que vous voyez dans le Logcat
                     Log.e(TAG, "ERREUR CRITIQUE: Échec téléchargement photo: ${photo.storagePath}", e)
                     null
                 }
@@ -364,7 +472,7 @@ object PdfReportExporter {
     }
 
     private fun getUriForFile(context: Context, file: File): Uri {
-        val authority = "${context.packageName}.fileprovider"
+        val authority = "${context.packageName}.provider"
         return FileProvider.getUriForFile(context, authority, file)
     }
 
