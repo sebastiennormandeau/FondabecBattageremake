@@ -211,8 +211,9 @@ object PdfReportExporter {
 
         val totalPiles = piles.size
         val implantedPiles = piles.count { it.implanted }
-        val avgDepth = piles.filter { it.implanted }.map { it.depthFt }.average()
-        val avgDepthText = if (avgDepth.isNaN()) "N/A" else String.format(Locale.CANADA, "%.1f ft", avgDepth)
+        val validDepthPiles = piles.filter { it.implanted && it.depthFt > 0 }
+        val avgDepth = if (validDepthPiles.isEmpty()) 0.0 else validDepthPiles.map { it.depthFt }.average()
+        val avgDepthText = if (validDepthPiles.isEmpty() || avgDepth.isNaN()) "N/A" else String.format(Locale.CANADA, "%.1f ft", avgDepth)
 
         val info = """
             Ville: ${project.city.trim().ifBlank { "N/A" }}
@@ -231,6 +232,33 @@ object PdfReportExporter {
     private fun drawPilesTableSection(piles: List<PileEntity>) {
         if (piles.isEmpty()) return
 
+        // Sort piles locally according to shape and natural alphanumeric order
+        val sortedPiles = piles.sortedWith(Comparator { p1, p2 ->
+            val s1 = p1.shape
+            val s2 = p2.shape
+            if (s1 != s2) return@Comparator s1.compareTo(s2)
+            
+            val no1 = p1.pileNo
+            val no2 = p2.pileNo
+            if (no1 == no2) return@Comparator 0
+            
+            val regex = Regex("\\d+|\\D+")
+            val chunks1 = regex.findAll(no1).map { it.value }.toList()
+            val chunks2 = regex.findAll(no2).map { it.value }.toList()
+            val max = minOf(chunks1.size, chunks2.size)
+            for (i in 0 until max) {
+                val c1 = chunks1[i]
+                val c2 = chunks2[i]
+                if (c1 != c2) {
+                    val n1 = c1.toIntOrNull()
+                    val n2 = c2.toIntOrNull()
+                    if (n1 != null && n2 != null) return@Comparator n1.compareTo(n2)
+                    return@Comparator c1.compareTo(c2)
+                }
+            }
+            chunks1.size.compareTo(chunks2.size)
+        })
+
         cursorY += 20f
         checkPageBreak(50f)
         currentCanvas.drawText("Liste des Pieux", MARGIN, cursorY, titlePaint)
@@ -238,24 +266,41 @@ object PdfReportExporter {
 
         drawPilesTableHeader()
 
-        piles.forEach { pile ->
-            checkPageBreak(20f)
+        var currentShape = "NONE_START"
 
+        sortedPiles.forEach { pile ->
             val fullNo = pile.pileNo.trim()
             val numberToDraw = if (fullNo.contains('-')) fullNo.substringAfterLast('-', "") else fullNo.ifBlank { "(auto)" }
+
+            val dummyPaint = TextPaint().apply { textSize = 7f }
+            val textW = dummyPaint.measureText(numberToDraw)
+            val textH = dummyPaint.descent() - dummyPaint.ascent()
+            val rowHeight = 20f
+
+            checkPageBreak(rowHeight + 5f)
+
+            if (pile.shape != currentShape) {
+                if (currentShape != "NONE_START") {
+                    currentCanvas.drawLine(MARGIN, cursorY, PAGE_WIDTH - MARGIN, cursorY, footerPaint)
+                    cursorY += 6f
+                }
+                currentShape = pile.shape
+            }
 
             val gauge = pile.gaugeIn.trim().ifBlank { "—" }
             val depth = if (pile.depthFt == 0.0) "—" else String.format(Locale.CANADA, "%.2f", pile.depthFt)
             val status = if (pile.implanted) "Implanté" else "Non implanté"
             val rebattage = if (pile.rebattage) "Oui" else "Non"
 
-            drawPileNumberWithShape(currentCanvas, MARGIN + 5, cursorY, pile, numberToDraw, bodyPaint)
+            val centerY = cursorY + rowHeight / 2f - 2f
+            drawPileNumberWithShape(currentCanvas, MARGIN + 5, centerY, pile, numberToDraw, bodyPaint)
 
-            currentCanvas.drawText(gauge, MARGIN + 85, cursorY, bodyPaint)
-            currentCanvas.drawText(depth, MARGIN + 205, cursorY, bodyPaint)
-            currentCanvas.drawText(status, MARGIN + 305, cursorY, bodyPaint)
-            currentCanvas.drawText(rebattage, MARGIN + 405, cursorY, bodyPaint)
-            cursorY += 20f
+            val textY = cursorY + rowHeight / 2f + 2f
+            currentCanvas.drawText(gauge, MARGIN + 95, textY, bodyPaint)
+            currentCanvas.drawText(depth, MARGIN + 205, textY, bodyPaint)
+            currentCanvas.drawText(status, MARGIN + 315, textY, bodyPaint)
+            currentCanvas.drawText(rebattage, MARGIN + 405, textY, bodyPaint)
+            cursorY += rowHeight
         }
     }
 
@@ -264,10 +309,11 @@ object PdfReportExporter {
         currentCanvas.drawRect(MARGIN, headerY, PAGE_WIDTH - MARGIN, headerY + 15f, tableHeaderBgPaint)
         cursorY += 12f
 
-        currentCanvas.drawText("PIEU N°", MARGIN + 5, cursorY, headerPaint)
-        currentCanvas.drawText("CALIBRE (PO)", MARGIN + 85, cursorY, headerPaint)
+        currentCanvas.drawText("FORME", MARGIN + 5, cursorY, headerPaint)
+        currentCanvas.drawText("PIEU N°", MARGIN + 45, cursorY, headerPaint)
+        currentCanvas.drawText("CALIBRE (PO)", MARGIN + 95, cursorY, headerPaint)
         currentCanvas.drawText("PROFONDEUR (FT)", MARGIN + 205, cursorY, headerPaint)
-        currentCanvas.drawText("STATUT", MARGIN + 305, cursorY, headerPaint)
+        currentCanvas.drawText("STATUT", MARGIN + 315, cursorY, headerPaint)
         currentCanvas.drawText("REBATTAGE", MARGIN + 405, cursorY, headerPaint)
 
         cursorY += 25f
@@ -290,27 +336,32 @@ object PdfReportExporter {
     }
 
     private fun drawPileNumberWithShape(canvas: Canvas, x: Float, y: Float, pile: PileEntity, text: String, paint: TextPaint) {
-        if (pile.shape.isBlank()) {
-            canvas.drawText(text, x + 30f, y, paint)
-            return
+        val cx = x + 15f // Center of the shape column
+        val cy = y
+
+        val textPaint = TextPaint(paint).apply {
+            textSize = 9f
+            textAlign = Paint.Align.LEFT
         }
+
+        // Draw the text (pile number) next to the shape column
+        val textX = MARGIN + 45f
+        val textY = cy - (textPaint.descent() + textPaint.ascent()) / 2
+        if (text.isNotBlank()) {
+            canvas.drawText(text, textX, textY, textPaint)
+        }
+
+        if (pile.shape.isBlank()) return
 
         val shape = try { PileShape.valueOf(pile.shape) } catch (e: Exception) { PileShape.CIRCLE }
 
-        val textPaint = TextPaint(paint).apply {
-            textAlign = Paint.Align.CENTER
-            textSize = 7f
-        }
         val shapePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             color = Color.BLACK
             strokeWidth = 1f
         }
 
-        val cx = x + 30f
-        val cy = y - 8f
-        val shapeRadius = 8f
-        val textY = cy - (textPaint.descent() + textPaint.ascent()) / 2
+        val shapeRadius = 6f // Fixed smaller radius since text is no longer inside it
 
         when (shape) {
             PileShape.CIRCLE -> canvas.drawCircle(cx, cy, shapeRadius, shapePaint)
@@ -332,9 +383,7 @@ object PdfReportExporter {
                 path.close()
                 canvas.drawPath(path, shapePaint)
             }
-            PileShape.HEXAGON -> {
-                drawHexagon(canvas, cx, cy, shapeRadius, shapePaint)
-            }
+            PileShape.HEXAGON -> drawHexagon(canvas, cx, cy, shapeRadius, shapePaint)
             PileShape.SQUARE_HEX -> {
                 canvas.drawRect(cx - shapeRadius, cy - shapeRadius, cx + shapeRadius, cy + shapeRadius, shapePaint)
                 drawHexagon(canvas, cx, cy, shapeRadius * 0.7f, shapePaint)
@@ -352,7 +401,6 @@ object PdfReportExporter {
                 canvas.drawCircle(cx, cy, shapeRadius * 0.5f, shapePaint)
             }
             PileShape.TRIANGLE_TRIANGLE -> {
-                // Dessine le triangle extérieur
                 val outerPath = Path()
                 outerPath.moveTo(cx, cy - shapeRadius)
                 outerPath.lineTo(cx + shapeRadius, cy + shapeRadius)
@@ -360,20 +408,14 @@ object PdfReportExporter {
                 outerPath.close()
                 canvas.drawPath(outerPath, shapePaint)
 
-                // CORRECTION: Dessine un triangle intérieur correctement centré
                 val innerRadius = shapeRadius * 0.5f
-                val innerOffsetY = shapeRadius * 0.25f // Petit décalage vers le bas pour centrer
                 val innerPath = Path()
-                innerPath.moveTo(cx, cy - innerRadius + innerOffsetY)
-                innerPath.lineTo(cx + innerRadius, cy + innerRadius + innerOffsetY)
-                innerPath.lineTo(cx - innerRadius, cy + innerRadius + innerOffsetY)
+                innerPath.moveTo(cx, cy - innerRadius + (shapeRadius * 0.25f))
+                innerPath.lineTo(cx + innerRadius, cy + innerRadius + (shapeRadius * 0.25f))
+                innerPath.lineTo(cx - innerRadius, cy + innerRadius + (shapeRadius * 0.25f))
                 innerPath.close()
                 canvas.drawPath(innerPath, shapePaint)
             }
-        }
-
-        if (text.isNotBlank()) {
-            canvas.drawText(text, cx, textY, textPaint)
         }
     }
 

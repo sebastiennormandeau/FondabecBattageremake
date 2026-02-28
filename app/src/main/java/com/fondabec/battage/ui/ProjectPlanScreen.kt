@@ -81,7 +81,11 @@ fun ProjectPlanScreen(
     onDeleteHotspot: (hotspotId: Long) -> Unit,
     onHotspotTap: (hotspotId: Long, currentPageIndex: Int) -> Unit,
     onUndoLastHotspot: (pageIndex: Int) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    initialScale: Float = 1f,
+    initialOffsetX: Float = 0f,
+    initialOffsetY: Float = 0f,
+    onSaveViewState: (Float, Float, Float) -> Unit = { _, _, _ -> }
 ) {
     val project by observeProject().collectAsStateWithLifecycle(initialValue = null)
     val planPath = project?.planPdfPath.orEmpty()
@@ -103,8 +107,19 @@ fun ProjectPlanScreen(
     var isLoading by remember(planPath, pageIndex) { mutableStateOf(false) }
     var error by remember(planPath, pageIndex) { mutableStateOf<String?>(null) }
 
-    var scale by remember(planPath, pageIndex) { mutableStateOf(1f) }
-    var offset by remember(planPath, pageIndex) { mutableStateOf(Offset.Zero) }
+    var scale by remember(projectId) { mutableStateOf(initialScale) }
+    var offsetX by remember(projectId) { mutableStateOf(initialOffsetX) }
+    var offsetY by remember(projectId) { mutableStateOf(initialOffsetY) }
+
+    val currentScale by androidx.compose.runtime.rememberUpdatedState(scale)
+    val currentOffsetX by androidx.compose.runtime.rememberUpdatedState(offsetX)
+    val currentOffsetY by androidx.compose.runtime.rememberUpdatedState(offsetY)
+
+    DisposableEffect(Unit) {
+        onDispose {
+            onSaveViewState(currentScale, currentOffsetX, currentOffsetY)
+        }
+    }
 
     var controlsVisible by remember(planPath) { mutableStateOf(true) }
     var mode by remember(planPath) { mutableStateOf(PlanMode.NAV) }
@@ -114,7 +129,8 @@ fun ProjectPlanScreen(
 
     fun resetView() {
         scale = 1f
-        offset = Offset.Zero
+        offsetX = 0f
+        offsetY = 0f
     }
 
     DisposableEffect(planPath) {
@@ -125,7 +141,6 @@ fun ProjectPlanScreen(
             isLoading = true
             pageCount = 0
             mode = PlanMode.NAV
-            resetView()
 
             try {
                 renderer?.close()
@@ -191,7 +206,6 @@ fun ProjectPlanScreen(
         isLoading = true
         error = null
         bitmap = null
-        resetView()
 
         val (bmp, err) = withContext(Dispatchers.IO) {
             try {
@@ -298,7 +312,7 @@ fun ProjectPlanScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .onSizeChanged { containerSize = it }
-                    .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y)
+                    .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offsetX, translationY = offsetY)
                     .pointerInput(mode, pageIndex, hotspots, containerSize, scale, image) {
                         detectTapGestures { tap ->
                             if (containerSize.width <= 0 || containerSize.height <= 0) return@detectTapGestures
@@ -345,7 +359,8 @@ fun ProjectPlanScreen(
                             val newScale = (scale * zoom).coerceIn(1f, 8f)
                             scale = newScale
                             val panSpeed = (1.35f + (newScale - 1f) * 0.28f).coerceIn(1.35f, 2.8f)
-                            offset = offset + Offset(pan.x * panSpeed, pan.y * panSpeed)
+                            offsetX += pan.x * panSpeed
+                            offsetY += pan.y * panSpeed
                         }
                     }
             ) {
@@ -425,8 +440,12 @@ fun ProjectPlanScreen(
 
                     if (controlsVisible) {
                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            MiniTextButton("◀", enabled = pageIndex > 0) { pageIndex = (pageIndex - 1).coerceAtLeast(0) }
+                            MiniTextButton("◀", enabled = pageIndex > 0) {
+                                resetView()
+                                pageIndex = (pageIndex - 1).coerceAtLeast(0)
+                            }
                             MiniTextButton("▶", enabled = pageCount > 0 && pageIndex < pageCount - 1) {
+                                resetView()
                                 pageIndex = (pageIndex + 1).coerceAtMost((pageCount - 1).coerceAtLeast(0))
                             }
                             Spacer(Modifier.weight(1f))

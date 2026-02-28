@@ -17,7 +17,7 @@ interface ProjectDao {
             p.name AS name,
             p.city AS city,
             p.startDateEpochMs AS startDateEpochMs,
-            COALESCE(AVG(pi.depthFt), 0.0) AS avgDepthFt,
+            COALESCE(AVG(CASE WHEN pi.depthFt > 0 THEN pi.depthFt ELSE NULL END), 0.0) AS avgDepthFt,
             p.createdAtEpochMs AS createdAtEpochMs,
             p.updatedAtEpochMs AS updatedAtEpochMs
         FROM projects p
@@ -142,7 +142,7 @@ interface ProjectDao {
             p.name AS name,
             p.latitude AS latitude,
             p.longitude AS longitude,
-            COALESCE(AVG(pi.depthFt), 0.0) AS avgDepthFt
+            COALESCE(AVG(CASE WHEN pi.depthFt > 0 THEN pi.depthFt ELSE NULL END), 0.0) AS avgDepthFt
         FROM projects p
         LEFT JOIN piles pi ON pi.projectId = p.id
         WHERE p.latitude != 0.0 AND p.longitude != 0.0

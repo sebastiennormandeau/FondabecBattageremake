@@ -100,6 +100,7 @@ fun ProjectDetailScreen(
     projectId: Long,
     observeProject: () -> Flow<ProjectEntity?>,
     observePiles: () -> Flow<List<PileEntity>>,
+    observeGroupedPiles: () -> Flow<Map<String, List<PileEntity>>>,
     observePhotos: () -> Flow<List<PhotoEntity>>,
     observeDocuments: () -> Flow<List<ProjectDocumentEntity>>,
     observeInspections: () -> Flow<List<InspectionDao.FullInspectionReport>>,
@@ -133,6 +134,7 @@ fun ProjectDetailScreen(
 ) {
     val project by observeProject().collectAsStateWithLifecycle(initialValue = null)
     val piles by observePiles().collectAsStateWithLifecycle(initialValue = emptyList())
+    val groupedPiles by observeGroupedPiles().collectAsStateWithLifecycle(initialValue = emptyMap())
     val photos by observePhotos().collectAsStateWithLifecycle(initialValue = emptyList())
     val documents by observeDocuments().collectAsStateWithLifecycle(initialValue = emptyList())
     val inspections by observeInspections().collectAsStateWithLifecycle(initialValue = emptyList())
@@ -447,7 +449,8 @@ fun ProjectDetailScreen(
 
     val total = piles.size
     val implantedCount = piles.count { it.implanted }
-    val avgDepth = if (piles.isEmpty()) 0.0 else piles.map { it.depthFt }.average()
+    val validDepthPiles = piles.filter { it.depthFt > 0 }
+    val avgDepth = if (validDepthPiles.isEmpty()) 0.0 else validDepthPiles.map { it.depthFt }.average()
     val avgDepth1 = round(avgDepth * 10.0) / 10.0
 
     Scaffold(
@@ -696,20 +699,29 @@ fun ProjectDetailScreen(
 
             item { Text("Pieux ($total)", style = MaterialTheme.typography.titleLarge) }
 
-            if (piles.isEmpty()) {
+            if (groupedPiles.isEmpty()) {
                 item { Text("Aucun pieu. Ajoute-en un.") }
             } else {
-                items(piles, key = { it.id }) { pile ->
-                    val title = pile.pileNo.ifBlank { "Pieu" }
-                    val implantedLabel = if (pile.implanted) "Implanté" else "Non implanté"
-                    val g = pile.gaugeIn.ifBlank { "-" }
-                    val sub = "Calibre: $g in | Prof.: ${pile.depthFt} ft | $implantedLabel"
+                groupedPiles.forEach { (shape, shapePiles) ->
+                    item {
+                        Text(
+                            text = "Forme: ${shape.ifBlank { "Non définie" }}",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                        )
+                    }
+                    items(shapePiles, key = { it.id }) { pile ->
+                        val title = pile.pileNo.ifBlank { "Pieu" }
+                        val implantedLabel = if (pile.implanted) "Implanté" else "Non implanté"
+                        val g = pile.gaugeIn.ifBlank { "-" }
+                        val sub = "Calibre: $g in | Prof.: ${pile.depthFt} ft | $implantedLabel"
 
-                    ListItem(
-                        headlineContent = { Text(title) },
-                        supportingContent = { Text(sub) },
-                        modifier = Modifier.clickable { onOpenPile(pile.id) }
-                    )
+                        ListItem(
+                            headlineContent = { Text(title) },
+                            supportingContent = { Text(sub) },
+                            modifier = Modifier.clickable { onOpenPile(pile.id) }
+                        )
+                    }
                 }
             }
 
