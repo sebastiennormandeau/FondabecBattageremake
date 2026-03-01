@@ -74,6 +74,8 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-storage")
+    implementation("com.google.firebase:firebase-vertexai:16.0.2")
+    implementation("com.google.firebase:firebase-appcheck-playintegrity")
 
     // GOOGLE MAPS
     implementation("com.google.android.gms:play-services-maps:19.2.0")
@@ -94,6 +96,9 @@ dependencies {
     implementation("io.coil-kt:coil-video:2.6.0")
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
+    // ITEXT (PDF Text Extraction)
+    implementation("com.itextpdf:itextpdf:5.5.13.3")
 
     // TESTING
     testImplementation("junit:junit:4.13.2")

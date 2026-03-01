@@ -21,11 +21,22 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import com.itextpdf.text.pdf.PdfReader
+import com.itextpdf.text.pdf.parser.PdfTextExtractor
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,7 +47,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import android.util.Log
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -66,6 +79,11 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.min
 import kotlin.math.sqrt
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.runtime.rememberCoroutineScope
 
 private enum class PlanMode { NAV, ADD, DEL }
 
@@ -78,6 +96,7 @@ fun ProjectPlanScreen(
     observePiles: () -> Flow<List<PileEntity>>,
     observeHotspotsForPage: (pageIndex: Int) -> Flow<List<PileHotspotEntity>>,
     onAddHotspot: (pageIndex: Int, xNorm: Float, yNorm: Float) -> Unit,
+    onAddAiDetectedPiles: (pageIndex: Int, aiPieux: List<com.fondabec.battage.utils.AiPieu>) -> Unit,
     onDeleteHotspot: (hotspotId: Long) -> Unit,
     onHotspotTap: (hotspotId: Long, currentPageIndex: Int) -> Unit,
     onUndoLastHotspot: (pageIndex: Int) -> Unit,
@@ -132,6 +151,11 @@ fun ProjectPlanScreen(
         offsetX = 0f
         offsetY = 0f
     }
+
+    val coroutineScope = rememberCoroutineScope()
+    var aiError by remember(planPath, pageIndex) { mutableStateOf<String?>(null) }
+    var isAiProcessing by remember(planPath, pageIndex) { mutableStateOf(false) }
+    // Le trigger automatique de l'IA a été retiré.
 
     DisposableEffect(planPath) {
         val scope = kotlinx.coroutines.MainScope()
@@ -250,14 +274,81 @@ fun ProjectPlanScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Plan PDF") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Retour") } }
+                title = { Text(project?.name ?: "Plan") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
+                    }
+                },
+                actions = {
+                    if (bitmap != null) {
+                        if (isAiProcessing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp).padding(end = 16.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            IconButton(onClick = {
+                                isAiProcessing = true
+                                aiError = null
+                                coroutineScope.launch {
+                                    Log.d("AiPlan", "Invocation MANUELLE de Vertex AI avec contexte texte extrait du PDF...")
+                                    try {
+                                        val pdfText = withContext(Dispatchers.IO) {
+                                            val file = java.io.File(context.filesDir, "${project?.remoteId}.pdf")
+                                            if (file.exists()) {
+                                                try {
+                                                    val reader = PdfReader(file.absolutePath)
+                                                    val sb = StringBuilder()
+                                                    val pages = reader.numberOfPages
+                                                    for (i in 1..pages) {
+                                                        sb.append(PdfTextExtractor.getTextFromPage(reader, i)).append("\n")
+                                                    }
+                                                    reader.close()
+                                                    sb.toString()
+                                                } catch (e: Exception) {
+                                                    Log.e("AiPlan", "Erreur extraction texte PDF", e)
+                                                    null
+                                                }
+                                            } else null
+                                        }
+                                        
+                                        val detectedPiles = com.fondabec.battage.utils.AiPlanAnalyzer.analyzePlanForPilesWithVertexAI(bitmap!!, pdfText)
+                                        if (detectedPiles != null && detectedPiles.isNotEmpty()) {
+                                            onAddAiDetectedPiles(pageIndex, detectedPiles)
+                                        } else {
+                                            aiError = "Aucun pieu détecté sur le plan actuel. (Le texte extrait contenait-il une légende ou liste claire?)"
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e("AiPlan", "Erreur AI manuelle", e)
+                                        aiError = "Erreur: ${e.message}"
+                                    } finally {
+                                        isAiProcessing = false
+                                    }
+                                }
+                            }) {
+                                Icon(Icons.Filled.AutoAwesome, contentDescription = "Détecter les pieux avec l'IA")
+                            }
+                        }
+                    }
+                }
             )
         }
-    ) { padding ->
+    ) { paddingValues ->
+        if (aiError != null) {
+            AlertDialog(
+                onDismissRequest = { aiError = null },
+                title = { Text("Erreur d'analyse IA") },
+                text = { Text(aiError ?: "") },
+                confirmButton = {
+                    TextButton(onClick = { aiError = null }) { Text("OK") }
+                }
+            )
+        }
         if (planPath.isBlank()) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -272,7 +363,7 @@ fun ProjectPlanScreen(
 
         if (error != null && bitmap == null) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -286,14 +377,14 @@ fun ProjectPlanScreen(
         }
 
         if (isLoading && bitmap == null) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(modifier = Modifier.size(48.dp))
             }
             return@Scaffold
         }
 
         val bmp = bitmap ?: run {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
                 Text("Aucune page rendue.")
             }
             return@Scaffold
@@ -304,7 +395,7 @@ fun ProjectPlanScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(paddingValues)
                 .background(Color(0xFF101010))
                 .clipToBounds()
         ) {
@@ -366,6 +457,7 @@ fun ProjectPlanScreen(
             ) {
                 Image(bitmap = image, contentDescription = "Plan PDF", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
 
+                val textMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     if (containerSize.width <= 0 || containerSize.height <= 0) return@Canvas
                     val fit = imageFitInfo(image, containerSize)
@@ -409,13 +501,47 @@ fun ProjectPlanScreen(
                                 pile.implanted -> Color(0xFFFFD54F) // Jaune
                                 else -> Color(0xFFB0BEC5) // Gris
                             }
-                            drawCircle(ringColor, radius = outer, center = c, style = Stroke(ringStroke))
-                        }
 
-                        drawLine(Color.White, Offset(c.x - arm, c.y), Offset(c.x + arm, c.y), strokeWidth = haloStroke)
-                        drawLine(Color.White, Offset(c.x, c.y - arm), Offset(c.x, c.y + arm), strokeWidth = haloStroke)
-                        drawLine(Color.Black, Offset(c.x - arm, c.y), Offset(c.x + arm, c.y), strokeWidth = crossStroke)
-                        drawLine(Color.Black, Offset(c.x, c.y - arm), Offset(c.x, c.y + arm), strokeWidth = crossStroke)
+                            // 1. DESSINER LA PASTILLE DE FOND PLEINE
+                            drawCircle(
+                                color = ringColor.copy(alpha = 0.9f),
+                                radius = outer * 1.5f,
+                                center = c
+                            )
+                            
+                            // 2. CONTOUR 
+                            drawCircle(
+                                color = Color.White,
+                                radius = outer * 1.5f,
+                                center = c,
+                                style = Stroke(ringStroke * 1.5f)
+                            )
+
+                            // 3. AFFICHAGE DE L'ID DU PIEU
+                            val label = pile?.pileNo?.takeIf { it.isNotBlank() } ?: h.id.toString()
+                            
+                            val textSizePx = with(density) { (14.dp / s).toPx() }.coerceAtLeast(12f)
+                            
+                            val textStyle = TextStyle(
+                                color = if (ringColor == Color(0xFFFFD54F)) Color.Black else Color.White,
+                                fontSize = with(density) { textSizePx.toSp() },
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                            
+                            val textLayoutResult = textMeasurer.measure(label, style = textStyle)
+                            
+                            val textOffset = Offset(
+                                c.x - (textLayoutResult.size.width / 2f),
+                                c.y - (textLayoutResult.size.height / 2f)
+                            )
+                            
+                            drawText(
+                                textMeasurer = textMeasurer,
+                                text = label,
+                                style = textStyle,
+                                topLeft = textOffset
+                            )
+                        }
                     }
                 }
             }

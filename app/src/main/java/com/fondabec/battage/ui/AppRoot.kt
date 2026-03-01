@@ -112,6 +112,7 @@ fun AppRoot(
             observePiles = { vm.observePiles(s.projectId) },
             observeHotspotsForPage = { page -> vm.observeHotspots(s.projectId, page) },
             onAddHotspot = { page, x, y -> vm.addHotspot(s.projectId, page, x, y) },
+            onAddAiDetectedPiles = { page, aiPieux -> vm.addAiDetectedPiles(s.projectId, page, aiPieux) },
             onDeleteHotspot = { hotspotId -> vm.deleteHotspot(hotspotId) },
             onHotspotTap = { hotspotId, currentPage -> vm.onHotspotTap(s.projectId, hotspotId, currentPage) },
             onUndoLastHotspot = { page -> vm.undoLastHotspot(s.projectId, page) },

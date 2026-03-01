@@ -360,6 +360,28 @@ class MainViewModel(
         }
     }
 
+    fun addAiDetectedPiles(projectId: Long, pageIndex: Int, aiPieux: List<com.fondabec.battage.utils.AiPieu>) {
+        viewModelScope.launch {
+            for (ai in aiPieux) {
+                val pileId = pileRepo.addPile(projectId)
+                if (pileId > 0L) {
+                    pileRepo.updatePile(
+                        projectId = projectId,
+                        pileId = pileId,
+                        pileNo = ai.id_pieu,
+                        gaugeIn = ai.calibre ?: "",
+                        depthFt = 0.0,
+                        implanted = false,
+                        rebattage = false,
+                        shape = ai.classement_forme ?: ""
+                    )
+                    val (xNorm, yNorm) = com.fondabec.battage.utils.AiPlanAnalyzer.convertAiCoordToNorm(ai.coord_x, ai.coord_y)
+                    hotspotRepo.addHotspot(projectId, pageIndex, xNorm, yNorm, pileId)
+                }
+            }
+        }
+    }
+
     fun deleteHotspot(hotspotId: Long) {
         viewModelScope.launch {
             val hotspot = hotspotRepo.getHotspot(hotspotId) ?: return@launch
