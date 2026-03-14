@@ -21,12 +21,24 @@ import com.fondabec.battage.data.SettingsRepository
 import com.fondabec.battage.ui.AppRoot
 import com.fondabec.battage.ui.AuthGate
 import com.fondabec.battage.ui.theme.FondabecBattageTheme
+import com.google.firebase.appcheck.FirebaseAppCheck
+import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
+import com.google.firebase.FirebaseApp
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        
+        // Initialize Firebase first
+        FirebaseApp.initializeApp(this)
+
+        // Initialize App Check with Play Integrity
+        val firebaseAppCheck = FirebaseAppCheck.getInstance()
+        firebaseAppCheck.installAppCheckProviderFactory(
+            PlayIntegrityAppCheckProviderFactory.getInstance()
+        )
 
         val db = AppDatabase.getInstance(applicationContext)
 
