@@ -296,6 +296,7 @@ class CloudSyncService(
         val country = data.str("country")
         val latitude = data.double("latitude")
         val longitude = data.double("longitude")
+        val plannedDepth = (data["plannedDepth"] as? Number)?.toDouble()
 
         val startDate = data.long("startDateEpochMs")
         val createdAt = data.long("createdAtEpochMs")
@@ -317,6 +318,7 @@ class CloudSyncService(
                     country = country,
                     latitude = latitude,
                     longitude = longitude,
+                    plannedDepth = plannedDepth,
                     startDateEpochMs = if (startDate == 0L) now else startDate,
                     createdAtEpochMs = if (createdAt == 0L) now else createdAt,
                     updatedAtEpochMs = if (updatedAt == 0L) now else updatedAt,
@@ -339,6 +341,7 @@ class CloudSyncService(
                 country = country,
                 latitude = latitude,
                 longitude = longitude,
+                plannedDepth = plannedDepth,
                 startDateEpochMs = if (startDate == 0L) local.startDateEpochMs else startDate,
                 createdAtEpochMs = if (createdAt == 0L) local.createdAtEpochMs else createdAt,
                 updatedAtEpochMs = if (updatedAt == 0L) local.updatedAtEpochMs else updatedAt,
@@ -608,6 +611,7 @@ class CloudSyncService(
                     "country" to p.country,
                     "latitude" to p.latitude,
                     "longitude" to p.longitude,
+                    "plannedDepth" to p.plannedDepth,
                     "startDateEpochMs" to p.startDateEpochMs,
                     "createdAtEpochMs" to p.createdAtEpochMs,
                     "updatedAtEpochMs" to p.updatedAtEpochMs

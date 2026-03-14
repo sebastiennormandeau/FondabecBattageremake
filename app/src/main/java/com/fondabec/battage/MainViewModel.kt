@@ -9,6 +9,7 @@ import com.fondabec.battage.data.InspectionDao
 import com.fondabec.battage.data.InspectionRepository
 import com.fondabec.battage.data.MapPointRepository
 import com.fondabec.battage.data.PhotoRepository
+import com.fondabec.battage.data.PileEntity
 import com.fondabec.battage.data.PileHotspotRepository
 import com.fondabec.battage.data.PileRepository
 import com.fondabec.battage.data.ProjectDocumentEntity
@@ -20,6 +21,7 @@ import com.fondabec.battage.ui.InspectionPoint
 import com.fondabec.battage.utils.EmailSender
 import com.fondabec.battage.utils.PdfGenerator
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -99,6 +101,11 @@ class MainViewModel(
         }
     }
 
+    // --- Plan View State ---
+    var savedPlanScale = 1f
+    var savedPlanOffsetX = 0f
+    var savedPlanOffsetY = 0f
+
     // --- Start / Navigation
 
     fun goStart() { _state.update { it.copy(screen = Screen.Start) } }
@@ -122,8 +129,8 @@ class MainViewModel(
     fun openProject(id: Long) { _state.update { it.copy(screen = Screen.ProjectDetail(id)) } }
     fun backHome() { _state.update { it.copy(screen = Screen.Home) } }
 
-    fun updateProject(projectId: Long, name: String, city: String) {
-        viewModelScope.launch { projectRepo.updateProject(projectId, name, city) }
+    fun updateProject(projectId: Long, name: String, city: String, plannedDepth: Double?) {
+        viewModelScope.launch { projectRepo.updateProject(projectId, name, city, plannedDepth) }
     }
 
     fun deleteProject(projectId: Long) {
@@ -135,6 +142,34 @@ class MainViewModel(
 
     fun observeProject(projectId: Long) = projectRepo.observeProject(projectId)
     fun observePiles(projectId: Long) = pileRepo.observePilesForProject(projectId)
+    fun observeGroupedPiles(projectId: Long): Flow<Map<String, List<PileEntity>>> {
+        return pileRepo.observePilesForProject(projectId).map { piles ->
+            piles.sortedWith(Comparator { p1, p2 ->
+                val s1 = p1.pileNo
+                val s2 = p2.pileNo
+                if (s1 == s2) return@Comparator 0
+                
+                val regex = Regex("\\d+|\\D+")
+                val chunks1 = regex.findAll(s1).map { it.value }.toList()
+                val chunks2 = regex.findAll(s2).map { it.value }.toList()
+                
+                val max = minOf(chunks1.size, chunks2.size)
+                for (i in 0 until max) {
+                    val c1 = chunks1[i]
+                    val c2 = chunks2[i]
+                    if (c1 != c2) {
+                        val n1 = c1.toIntOrNull()
+                        val n2 = c2.toIntOrNull()
+                        if (n1 != null && n2 != null) {
+                            return@Comparator n1.compareTo(n2)
+                        }
+                        return@Comparator c1.compareTo(c2)
+                    }
+                }
+                chunks1.size.compareTo(chunks2.size)
+            }).groupBy { it.shape }
+        }
+    }
     fun observePile(pileId: Long) = pileRepo.observePile(pileId)
 
     // --- Documents Techniques ---
@@ -241,6 +276,9 @@ class MainViewModel(
     // --- Plan PDF
 
     fun openPlan(projectId: Long) {
+        savedPlanScale = 1f
+        savedPlanOffsetX = 0f
+        savedPlanOffsetY = 0f
         _state.update { it.copy(screen = Screen.ProjectPlan(projectId, pageIndex = 0)) }
     }
 

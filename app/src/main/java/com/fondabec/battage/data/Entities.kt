@@ -41,6 +41,8 @@ data class ProjectEntity(
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
 
+    val plannedDepth: Double? = null,
+
     val startDateEpochMs: Long,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,

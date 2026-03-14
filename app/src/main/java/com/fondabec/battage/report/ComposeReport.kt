@@ -45,7 +45,8 @@ fun ProjectReport(project: ProjectEntity, piles: List<PileEntity>, photoBitmaps:
 
     val total = piles.size
     val implanted = piles.count { it.implanted }
-    val avgDepth = if (piles.isEmpty()) 0.0 else piles.map { it.depthFt }.average()
+    val validDepthPiles = piles.filter { it.depthFt > 0 }
+    val avgDepth = if (validDepthPiles.isEmpty()) 0.0 else validDepthPiles.map { it.depthFt }.average()
     val avgDepth1 = String.format(Locale.CANADA, "%.1f", avgDepth)
 
     Column(modifier = Modifier.background(Color.White).padding(24.dp).fillMaxWidth()) {

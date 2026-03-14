@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -33,6 +35,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -63,6 +67,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -100,11 +106,12 @@ fun ProjectDetailScreen(
     projectId: Long,
     observeProject: () -> Flow<ProjectEntity?>,
     observePiles: () -> Flow<List<PileEntity>>,
+    observeGroupedPiles: () -> Flow<Map<String, List<PileEntity>>>,
     observePhotos: () -> Flow<List<PhotoEntity>>,
     observeDocuments: () -> Flow<List<ProjectDocumentEntity>>,
     observeInspections: () -> Flow<List<InspectionDao.FullInspectionReport>>,
     onBack: () -> Unit,
-    onSaveProject: (name: String, city: String) -> Unit,
+    onSaveProject: (name: String, city: String, plannedDepth: Double?) -> Unit,
     onUpdateProjectLocation: (
         street: String,
         city: String,
@@ -133,6 +140,7 @@ fun ProjectDetailScreen(
 ) {
     val project by observeProject().collectAsStateWithLifecycle(initialValue = null)
     val piles by observePiles().collectAsStateWithLifecycle(initialValue = emptyList())
+    val groupedPiles by observeGroupedPiles().collectAsStateWithLifecycle(initialValue = emptyMap())
     val photos by observePhotos().collectAsStateWithLifecycle(initialValue = emptyList())
     val documents by observeDocuments().collectAsStateWithLifecycle(initialValue = emptyList())
     val inspections by observeInspections().collectAsStateWithLifecycle(initialValue = emptyList())
@@ -149,6 +157,9 @@ fun ProjectDetailScreen(
 
     var nameEditedByUser by remember(projectId) { mutableStateOf(false) }
     var locationEditedByUser by remember(projectId) { mutableStateOf(false) }
+    
+    var isPlannedDepthEditing by remember { mutableStateOf(false) }
+    var plannedDepthText by remember(projectId) { mutableStateOf("") }
 
     var showPdfDialog by remember { mutableStateOf(false) }
     var reportToDelete by remember { mutableStateOf<InspectionDao.FullInspectionReport?>(null) }
@@ -309,15 +320,24 @@ fun ProjectDetailScreen(
         val p = project ?: return@LaunchedEffect
         nameEditedByUser = false
         locationEditedByUser = false
+        isPlannedDepthEditing = false
 
         nameField = TextFieldValue(if (p.name.trim() == defaultProjectName) "" else p.name)
         locationText = formatLocation(p)
+        plannedDepthText = p.plannedDepth?.let { if (it > 0) it.toString() else "" } ?: ""
     }
 
     LaunchedEffect(project?.street, project?.city, project?.province, project?.postalCode, project?.country) {
         val p = project ?: return@LaunchedEffect
         if (!locationEditedByUser) {
             locationText = formatLocation(p)
+        }
+    }
+
+    LaunchedEffect(project?.plannedDepth) {
+        val p = project ?: return@LaunchedEffect
+        if (!isPlannedDepthEditing) {
+            plannedDepthText = p.plannedDepth?.let { if (it > 0) it.toString() else "" } ?: ""
         }
     }
 
@@ -447,13 +467,17 @@ fun ProjectDetailScreen(
 
     val total = piles.size
     val implantedCount = piles.count { it.implanted }
-    val avgDepth = if (piles.isEmpty()) 0.0 else piles.map { it.depthFt }.average()
+    val validDepthPiles = piles.filter { it.depthFt > 0 }
+    val avgDepth = if (validDepthPiles.isEmpty()) 0.0 else validDepthPiles.map { it.depthFt }.average()
     val avgDepth1 = round(avgDepth * 10.0) / 10.0
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Projet #$projectId") },
+                title = { 
+                    val titleText = project?.name?.takeIf { it.isNotBlank() && it != defaultProjectName } ?: "Projet #$projectId"
+                    Text(titleText, maxLines = 1) 
+                },
                 navigationIcon = { TextButton(onClick = onBack) { Text("Retour") } }
             )
         }
@@ -513,8 +537,10 @@ fun ProjectDetailScreen(
 
                         val parsed = parseLocation(locationText)
                         val cityForCompat = parsed.city.ifBlank { locationText.trim() }
+                        val plannedDepth = plannedDepthText.replace(",", ".").toDoubleOrNull()
 
-                        onSaveProject(nameField.text, cityForCompat)
+                        onSaveProject(nameField.text, cityForCompat, plannedDepth)
+                        isPlannedDepthEditing = false
 
                         if (p != null) {
                             val hasStructured =
@@ -661,7 +687,63 @@ fun ProjectDetailScreen(
             }
 
             item { Text("Résumé", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top=8.dp)) }
-            item { Text("• Profondeur moyenne: $avgDepth1 ft") }
+            item { Text("• Profondeur moyenne: $avgDepth1 ft (${validDepthPiles.size})") }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("• Profondeur prévue: ", style = MaterialTheme.typography.bodyLarge)
+                    
+                    OutlinedTextField(
+                        value = plannedDepthText,
+                        onValueChange = { newValue ->
+                            if (newValue.length <= 6) {
+                                val parsed = newValue.replace(",", ".").toDoubleOrNull()
+                                if (newValue.isEmpty() || (parsed != null && parsed <= 999.0)) {
+                                    val regexCheck = newValue.replace(",", ".")
+                                    val parts = regexCheck.split(".")
+                                    if (parts.size <= 2 && (parts.getOrNull(0)?.length ?: 0) <= 3) {
+                                        plannedDepthText = newValue
+                                    }
+                                } else if (newValue.endsWith(".") || newValue.endsWith(",")) {
+                                     val regexCheck = newValue.replace(",", ".")
+                                     val parts = regexCheck.split(".")
+                                     if (parts.size <= 2 && (parts.getOrNull(0)?.length ?: 0) <= 3) {
+                                        plannedDepthText = newValue
+                                    }
+                                }
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        enabled = isPlannedDepthEditing,
+                        placeholder = { Text("0.0") },
+                        modifier = Modifier.width(80.dp)
+                    )
+                    
+                    Text(" ft", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 4.dp))
+                    
+                    Spacer(modifier = Modifier.weight(1f))
+                    
+                    IconButton(onClick = { 
+                        if (isPlannedDepthEditing) {
+                            val parsed = parseLocation(locationText)
+                            val cityForCompat = parsed.city.ifBlank { locationText.trim() }
+                            val newPlannedDepth = plannedDepthText.replace(",", ".").toDoubleOrNull()
+                            onSaveProject(nameField.text, cityForCompat, newPlannedDepth)
+                            isPlannedDepthEditing = false
+                        } else {
+                            isPlannedDepthEditing = true
+                        }
+                    }) {
+                        Icon(
+                            imageVector = if (isPlannedDepthEditing) Icons.Default.Check else Icons.Default.Edit, 
+                            contentDescription = if (isPlannedDepthEditing) "Enregistrer la profondeur" else "Modifier la profondeur"
+                        )
+                    }
+                }
+            }
             item { Text("• Pieux implantés: $implantedCount / $total") }
 
             // --- Photos ---
@@ -696,20 +778,29 @@ fun ProjectDetailScreen(
 
             item { Text("Pieux ($total)", style = MaterialTheme.typography.titleLarge) }
 
-            if (piles.isEmpty()) {
+            if (groupedPiles.isEmpty()) {
                 item { Text("Aucun pieu. Ajoute-en un.") }
             } else {
-                items(piles, key = { it.id }) { pile ->
-                    val title = pile.pileNo.ifBlank { "Pieu" }
-                    val implantedLabel = if (pile.implanted) "Implanté" else "Non implanté"
-                    val g = pile.gaugeIn.ifBlank { "-" }
-                    val sub = "Calibre: $g in | Prof.: ${pile.depthFt} ft | $implantedLabel"
+                groupedPiles.forEach { (shape, shapePiles) ->
+                    item {
+                        Text(
+                            text = "Forme: ${shape.ifBlank { "Non définie" }}",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                        )
+                    }
+                    items(shapePiles, key = { it.id }) { pile ->
+                        val title = pile.pileNo.ifBlank { "Pieu" }
+                        val implantedLabel = if (pile.implanted) "Implanté" else "Non implanté"
+                        val g = pile.gaugeIn.ifBlank { "-" }
+                        val sub = "Calibre: $g in | Prof.: ${pile.depthFt} ft | $implantedLabel"
 
-                    ListItem(
-                        headlineContent = { Text(title) },
-                        supportingContent = { Text(sub) },
-                        modifier = Modifier.clickable { onOpenPile(pile.id) }
-                    )
+                        ListItem(
+                            headlineContent = { Text(title) },
+                            supportingContent = { Text(sub) },
+                            modifier = Modifier.clickable { onOpenPile(pile.id) }
+                        )
+                    }
                 }
             }
 

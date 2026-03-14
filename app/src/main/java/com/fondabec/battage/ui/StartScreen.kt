@@ -117,7 +117,7 @@ fun StartScreen(
                 }
 
                 Button(onClick = onOpenMap, modifier = Modifier.fillMaxWidth()) {
-                    Text("Carte profondeurs (bientôt)")
+                    Text("Carte profondeurs")
                 }
 
                 Spacer(Modifier.weight(1f))

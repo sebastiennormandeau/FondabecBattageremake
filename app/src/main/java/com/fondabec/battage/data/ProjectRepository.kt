@@ -33,12 +33,12 @@ class ProjectRepository(private val dao: ProjectDao) {
         id
     }
 
-    suspend fun updateProject(projectId: Long, name: String, city: String) = withContext(Dispatchers.IO) {
+    suspend fun updateProject(projectId: Long, name: String, city: String, plannedDepth: Double?) = withContext(Dispatchers.IO) {
         val existing = dao.getById(projectId) ?: return@withContext
         if (!CloudSyncHolder.canWrite(existing.ownerUid)) return@withContext
 
         val now = System.currentTimeMillis()
-        dao.updateProject(projectId, name.trim(), city.trim(), now)
+        dao.updateProject(projectId, name.trim(), city.trim(), plannedDepth, now)
         CloudSyncHolder.sync()?.pushProject(projectId)
     }
 

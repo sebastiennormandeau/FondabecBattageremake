@@ -17,7 +17,7 @@ interface ProjectDao {
             p.name AS name,
             p.city AS city,
             p.startDateEpochMs AS startDateEpochMs,
-            COALESCE(AVG(pi.depthFt), 0.0) AS avgDepthFt,
+            COALESCE(AVG(CASE WHEN pi.depthFt > 0 THEN pi.depthFt ELSE NULL END), 0.0) AS avgDepthFt,
             p.createdAtEpochMs AS createdAtEpochMs,
             p.updatedAtEpochMs AS updatedAtEpochMs
         FROM projects p
@@ -46,11 +46,12 @@ interface ProjectDao {
         UPDATE projects SET 
             name = :name, 
             city = :city, 
+            plannedDepth = :plannedDepth,
             updatedAtEpochMs = :updatedAt 
         WHERE id = :projectId
         """
     )
-    suspend fun updateProject(projectId: Long, name: String, city: String, updatedAt: Long)
+    suspend fun updateProject(projectId: Long, name: String, city: String, plannedDepth: Double?, updatedAt: Long)
 
     @Query(
         """
@@ -108,6 +109,7 @@ interface ProjectDao {
             country = :country,
             latitude = :latitude,
             longitude = :longitude,
+            plannedDepth = :plannedDepth,
             startDateEpochMs = :startDateEpochMs,
             createdAtEpochMs = :createdAtEpochMs,
             updatedAtEpochMs = :updatedAtEpochMs,
@@ -127,6 +129,7 @@ interface ProjectDao {
         country: String,
         latitude: Double,
         longitude: Double,
+        plannedDepth: Double?,
         startDateEpochMs: Long,
         createdAtEpochMs: Long,
         updatedAtEpochMs: Long,
@@ -142,7 +145,7 @@ interface ProjectDao {
             p.name AS name,
             p.latitude AS latitude,
             p.longitude AS longitude,
-            COALESCE(AVG(pi.depthFt), 0.0) AS avgDepthFt
+            COALESCE(AVG(CASE WHEN pi.depthFt > 0 THEN pi.depthFt ELSE NULL END), 0.0) AS avgDepthFt
         FROM projects p
         LEFT JOIN piles pi ON pi.projectId = p.id
         WHERE p.latitude != 0.0 AND p.longitude != 0.0

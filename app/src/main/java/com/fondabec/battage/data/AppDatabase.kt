@@ -7,8 +7,8 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-// On passe à la version 15
-private const val DB_VERSION = 15
+// On passe à la version 16
+private const val DB_VERSION = 16
 
 private val MIGRATION_6_7_ADD_MAP_POINTS = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -134,6 +134,12 @@ private val MIGRATION_14_15_ADD_SHAPE_TO_PILES = object : Migration(14, 15) {
     }
 }
 
+private val MIGRATION_15_16_ADD_PLANNED_DEPTH = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE projects ADD COLUMN plannedDepth REAL DEFAULT NULL")
+    }
+}
+
 @Database(
     entities = [
         ProjectEntity::class,
@@ -174,7 +180,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_10_11_ADD_DOCUMENTS,
                         MIGRATION_11_12_ADD_REBATTAGE_TO_PILES,
                         MIGRATION_12_13_ADD_INSPECTIONS,
-                        MIGRATION_14_15_ADD_SHAPE_TO_PILES // Ajouté
+                        MIGRATION_14_15_ADD_SHAPE_TO_PILES, // Ajouté
+                        MIGRATION_15_16_ADD_PLANNED_DEPTH
                     )
                     .fallbackToDestructiveMigration()
                     .build()

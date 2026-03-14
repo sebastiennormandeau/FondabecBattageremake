@@ -47,11 +47,12 @@ fun AppRoot(
             projectId = s.projectId,
             observeProject = { vm.observeProject(s.projectId) },
             observePiles = { vm.observePiles(s.projectId) },
+            observeGroupedPiles = { vm.observeGroupedPiles(s.projectId) },
             observePhotos = { vm.observePhotos(s.projectId) },
             observeDocuments = { vm.observeDocuments(s.projectId) },
             observeInspections = { vm.observeInspectionsForProject(s.projectId) },
             onBack = { vm.backHome() },
-            onSaveProject = { name, city -> vm.updateProject(s.projectId, name, city) },
+            onSaveProject = { name, city, plannedDepth -> vm.updateProject(s.projectId, name, city, plannedDepth) },
             onDeleteProject = { vm.deleteProject(s.projectId) },
             onAddPile = { vm.addPile(s.projectId) },
             onOpenPile = { pileId -> vm.openPile(s.projectId, pileId, returnToPlan = false) },
@@ -114,7 +115,15 @@ fun AppRoot(
             onDeleteHotspot = { hotspotId -> vm.deleteHotspot(hotspotId) },
             onHotspotTap = { hotspotId, currentPage -> vm.onHotspotTap(s.projectId, hotspotId, currentPage) },
             onUndoLastHotspot = { page -> vm.undoLastHotspot(s.projectId, page) },
-            onBack = { vm.openProject(s.projectId) }
+            onBack = { vm.openProject(s.projectId) },
+            initialScale = vm.savedPlanScale,
+            initialOffsetX = vm.savedPlanOffsetX,
+            initialOffsetY = vm.savedPlanOffsetY,
+            onSaveViewState = { scale, offsetX, offsetY ->
+                vm.savedPlanScale = scale
+                vm.savedPlanOffsetX = offsetX
+                vm.savedPlanOffsetY = offsetY
+            }
         )
 
         is Screen.PdfViewer -> PdfViewerScreen(
