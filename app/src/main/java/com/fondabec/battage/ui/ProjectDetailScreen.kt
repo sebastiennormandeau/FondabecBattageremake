@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -160,6 +162,8 @@ fun ProjectDetailScreen(
     
     var isPlannedDepthEditing by remember { mutableStateOf(false) }
     var plannedDepthText by remember(projectId) { mutableStateOf("") }
+
+    var expandedShapes by remember { mutableStateOf(setOf<String>()) }
 
     var showPdfDialog by remember { mutableStateOf(false) }
     var reportToDelete by remember { mutableStateOf<InspectionDao.FullInspectionReport?>(null) }
@@ -782,24 +786,45 @@ fun ProjectDetailScreen(
                 item { Text("Aucun pieu. Ajoute-en un.") }
             } else {
                 groupedPiles.forEach { (shape, shapePiles) ->
+                    val isExpanded = expandedShapes.contains(shape)
                     item {
-                        Text(
-                            text = "Forme: ${shape.ifBlank { "Non définie" }}",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    expandedShapes = if (isExpanded) {
+                                        expandedShapes - shape
+                                    } else {
+                                        expandedShapes + shape
+                                    }
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Forme: ${shape.ifBlank { "Non définie" }} (${shapePiles.size})",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = if (isExpanded) "Réduire" else "Développer"
+                            )
+                        }
                     }
-                    items(shapePiles, key = { it.id }) { pile ->
-                        val title = pile.pileNo.ifBlank { "Pieu" }
-                        val implantedLabel = if (pile.implanted) "Implanté" else "Non implanté"
-                        val g = pile.gaugeIn.ifBlank { "-" }
-                        val sub = "Calibre: $g in | Prof.: ${pile.depthFt} ft | $implantedLabel"
+                    if (isExpanded) {
+                        items(shapePiles, key = { it.id }) { pile ->
+                            val title = pile.pileNo.ifBlank { "Pieu" }
+                            val implantedLabel = if (pile.implanted) "Implanté" else "Non implanté"
+                            val g = pile.gaugeIn.ifBlank { "-" }
+                            val sub = "Calibre: $g in | Prof.: ${pile.depthFt} ft | $implantedLabel"
 
-                        ListItem(
-                            headlineContent = { Text(title) },
-                            supportingContent = { Text(sub) },
-                            modifier = Modifier.clickable { onOpenPile(pile.id) }
-                        )
+                            ListItem(
+                                headlineContent = { Text(title) },
+                                supportingContent = { Text(sub) },
+                                modifier = Modifier.clickable { onOpenPile(pile.id) }
+                            )
+                        }
                     }
                 }
             }
